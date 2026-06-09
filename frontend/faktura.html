@@ -187,7 +187,8 @@ document.getElementById('btnDownload').addEventListener('click', async () => {
   btn.textContent = 'Generisanje...';
   try {
     const token = localStorage.getItem('faktura_token');
-    const res = await fetch(`/api/fakture/${id}/pdf`, {
+    const WORKER_URL = 'https://faktura-rs-worker.workers-rs.workers.dev';
+    const res = await fetch(`${WORKER_URL}/api/fakture/${id}/pdf`, {
       headers: { 'Authorization': `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Greška pri generisanju PDF-a');
