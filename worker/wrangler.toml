@@ -8,8 +8,5 @@ binding = "DB"
 database_name = "faktura-rs-db"
 database_id = "4c9088ed-3191-482d-bb60-23a153d4645b"
 
-[browser]
-binding = "BROWSER"
-
 [vars]
 # PASSWORD is set via: wrangler secret put PASSWORD

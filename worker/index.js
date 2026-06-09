@@ -1,4 +1,4 @@
-import puppeteer from '@cloudflare/puppeteer';
+import PdfPrinter from 'pdfmake';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -51,6 +51,15 @@ const PREDUZETNIK = {
   swift: 'RZBSRSBG',
 };
 
+const fonts = {
+  Helvetica: {
+    normal: 'Helvetica',
+    bold: 'Helvetica-Bold',
+    italics: 'Helvetica-Oblique',
+    bolditalics: 'Helvetica-BoldOblique'
+  }
+};
+
 function fmtDate(d) {
   if (!d) return '—';
   const [y, m, day] = String(d).slice(0, 10).split('-');
@@ -59,132 +68,137 @@ function fmtDate(d) {
 
 function fmtAmount(amount, valuta) {
   const num = parseFloat(amount) || 0;
-  if (valuta === 'RSD') {
-    return new Intl.NumberFormat('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num) + ' RSD';
-  }
-  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num) + ' ' + (valuta || 'EUR');
+  return new Intl.NumberFormat('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num) + ' ' + (valuta || 'RSD');
 }
 
-function buildInvoiceHtml(f) {
+function buildPdfDefinition(f) {
   let stavke = [];
   try { stavke = typeof f.stavke === 'string' ? JSON.parse(f.stavke) : f.stavke; } catch {}
 
   const isDevizna = f.valuta !== 'RSD';
 
+  const tableBody = [
+    [
+      { text: 'R.br.', style: 'tableHeader' },
+      { text: 'Naziv usluge / proizvoda', style: 'tableHeader' },
+      { text: 'Kol.', style: 'tableHeader', alignment: 'right' },
+      { text: 'Jed.', style: 'tableHeader' },
+      { text: 'Cijena', style: 'tableHeader', alignment: 'right' },
+      { text: 'Iznos', style: 'tableHeader', alignment: 'right' }
+    ],
+    ...stavke.map((s, i) => [
+      { text: `${i + 1}.`, fontSize: 9 },
+      { text: s.naziv, fontSize: 9 },
+      { text: String(s.kolicina), fontSize: 9, alignment: 'right' },
+      { text: s.jedinica || 'kom', fontSize: 9 },
+      { text: fmtAmount(s.cena, f.valuta), fontSize: 9, alignment: 'right' },
+      { text: fmtAmount(s.ukupno, f.valuta), fontSize: 9, bold: true, alignment: 'right' }
+    ])
+  ];
+
   const paymentInfo = isDevizna
-    ? `<strong>IBAN:</strong> ${PREDUZETNIK.iban}<br><strong>SWIFT:</strong> ${PREDUZETNIK.swift}<br><strong>Banka:</strong> ${PREDUZETNIK.banka}`
-    : `<strong>Žiro račun:</strong> ${PREDUZETNIK.ziro_rsd}<br><strong>Banka:</strong> ${PREDUZETNIK.banka}`;
+    ? `IBAN: ${PREDUZETNIK.iban}\nSWIFT: ${PREDUZETNIK.swift}\nBanka: ${PREDUZETNIK.banka}`
+    : `Žiro račun: ${PREDUZETNIK.ziro_rsd}\nBanka: ${PREDUZETNIK.banka}`;
 
-  const stavkeRows = stavke.map((s, i) => `
-    <tr>
-      <td>${i + 1}.</td>
-      <td>${s.naziv}</td>
-      <td style="text-align:right">${parseFloat(s.kolicina).toLocaleString('sr-RS')}</td>
-      <td>${s.jedinica || 'kom'}</td>
-      <td style="text-align:right">${fmtAmount(s.cena, f.valuta)}</td>
-      <td style="text-align:right"><strong>${fmtAmount(s.ukupno, f.valuta)}</strong></td>
-    </tr>`).join('');
-
-  return `<!DOCTYPE html>
-<html lang="sr">
-<head>
-<meta charset="UTF-8">
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a2e;background:#fff;margin:0;padding:0;width:794px;overflow:hidden}
-.a4{width:794px;padding:40px 50px;box-sizing:border-box}
-.inv-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px}
-.inv-company h2{font-size:16px;font-weight:700;color:#2563eb}
-.inv-company p{font-size:10px;color:#555;line-height:1.6;margin-top:3px}
-.inv-title{text-align:right}
-.inv-title h1{font-size:22px;font-weight:700;letter-spacing:2px;color:#1a1a2e}
-.inv-title .inv-number{font-size:11px;color:#6b7280;margin-top:4px}
-.inv-title .inv-date{font-size:10px;color:#6b7280;margin-top:2px}
-.inv-parties{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-bottom:32px}
-.inv-party h4{font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px}
-.inv-party p{font-size:10px;line-height:1.7;color:#333}
-.inv-party strong{color:#1a1a2e}
-table.inv-table{width:100%;border-collapse:collapse;margin-bottom:20px}
-.inv-table th{background:#f3f4f6;padding:6px 8px;font-size:9px;font-weight:700;color:#6b7280;text-align:left;border-bottom:2px solid #e0e0e0;text-transform:uppercase}
-.inv-table td{padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:10px}
-.inv-table tr:last-child td{border-bottom:none}
-.inv-totals{display:flex;justify-content:flex-end;margin-bottom:32px}
-.inv-totals-box{width:260px}
-.total-grand{display:flex;justify-content:space-between;padding:8px 0 0;font-size:13px;font-weight:700;color:#2563eb}
-.inv-payment{margin-bottom:20px}
-.inv-payment h4{font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px}
-.inv-payment p{font-size:10px;line-height:1.8;color:#333}
-.inv-footer{border-top:1px solid #e0e0e0;padding-top:14px;margin-top:auto}
-.inv-footer p{font-size:9px;color:#6b7280;line-height:1.7}
-</style>
-</head>
-<body>
-<div class="a4">
-  <div class="inv-header">
-    <div class="inv-company">
-      <h2>${PREDUZETNIK.naziv}</h2>
-      <p>PIB: ${PREDUZETNIK.pib} &nbsp;|&nbsp; MB: ${PREDUZETNIK.mb}<br>${PREDUZETNIK.adresa}<br>${PREDUZETNIK.email}</p>
-    </div>
-    <div class="inv-title">
-      <h1>FAKTURA</h1>
-      <div class="inv-number">Broj: <strong>${f.broj}</strong></div>
-      <div class="inv-date">Datum izdavanja: ${fmtDate(f.datum_izdavanja)}</div>
-      <div class="inv-date">Datum prometa: ${fmtDate(f.datum_prometa)}</div>
-      <div class="inv-date">Rok plaćanja: ${fmtDate(f.datum_valute)}</div>
-    </div>
-  </div>
-
-  <div class="inv-parties">
-    <div class="inv-party">
-      <h4>Izdavalac</h4>
-      <p><strong>${PREDUZETNIK.naziv}</strong><br>PIB: ${PREDUZETNIK.pib}<br>MB: ${PREDUZETNIK.mb}<br>${PREDUZETNIK.adresa}<br>${PREDUZETNIK.email}</p>
-    </div>
-    <div class="inv-party">
-      <h4>Primalac</h4>
-      <p><strong>${f.klijent_naziv || '—'}</strong><br>
-      ${f.klijent_pib ? `PIB: ${f.klijent_pib}<br>` : ''}
-      ${f.klijent_mb ? `MB: ${f.klijent_mb}<br>` : ''}
-      ${f.klijent_adresa ? `${f.klijent_adresa}<br>` : ''}
-      ${f.klijent_email ? f.klijent_email : ''}</p>
-    </div>
-  </div>
-
-  <table class="inv-table">
-    <thead>
-      <tr>
-        <th>R.br.</th>
-        <th>Naziv usluge / proizvoda</th>
-        <th style="text-align:right">Količina</th>
-        <th>Jed. mere</th>
-        <th style="text-align:right">Cijena</th>
-        <th style="text-align:right">Iznos</th>
-      </tr>
-    </thead>
-    <tbody>${stavkeRows}</tbody>
-  </table>
-
-  <div class="inv-totals">
-    <div class="inv-totals-box">
-      <div class="total-grand">
-        <span>UKUPNO ZA PLAĆANJE</span>
-        <span>${fmtAmount(f.ukupno, f.valuta)}</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="inv-payment">
-    <h4>Podaci za plaćanje</h4>
-    <p>${paymentInfo}</p>
-  </div>
-
-  ${f.napomena ? `<div class="inv-payment"><h4>Napomena</h4><p>${f.napomena}</p></div>` : ''}
-
-  <div class="inv-footer">
-    <p>PDV nije obračunat na osnovu člana 33. Zakona o PDV (paušalni poreski obveznik).</p>
-  </div>
-</div>
-</body>
-</html>`;
+  return {
+    pageSize: 'A4',
+    pageMargins: [40, 40, 40, 40],
+    defaultStyle: { font: 'Helvetica', fontSize: 10, color: '#1a1a2e' },
+    styles: {
+      companyName: { fontSize: 16, bold: true, color: '#2563eb' },
+      invoiceTitle: { fontSize: 22, bold: true },
+      tableHeader: { fontSize: 9, bold: true, color: '#666666', fillColor: '#f3f4f6' },
+      sectionLabel: { fontSize: 8, bold: true, color: '#888888' },
+      totalLabel: { fontSize: 12, bold: true, color: '#2563eb' },
+      footer: { fontSize: 9, color: '#888888' }
+    },
+    content: [
+      {
+        columns: [
+          {
+            stack: [
+              { text: PREDUZETNIK.naziv, style: 'companyName' },
+              { text: `PIB: ${PREDUZETNIK.pib} | MB: ${PREDUZETNIK.mb}`, fontSize: 9, color: '#555555', margin: [0, 4, 0, 0] },
+              { text: PREDUZETNIK.adresa, fontSize: 9, color: '#555555' },
+              { text: PREDUZETNIK.email, fontSize: 9, color: '#555555' }
+            ]
+          },
+          {
+            stack: [
+              { text: 'FAKTURA', style: 'invoiceTitle', alignment: 'right' },
+              { text: `Broj: ${f.broj}`, fontSize: 10, alignment: 'right', margin: [0, 4, 0, 0] },
+              { text: `Datum izdavanja: ${fmtDate(f.datum_izdavanja)}`, fontSize: 9, color: '#555555', alignment: 'right' },
+              { text: `Datum prometa: ${fmtDate(f.datum_prometa)}`, fontSize: 9, color: '#555555', alignment: 'right' },
+              { text: `Rok plaćanja: ${fmtDate(f.datum_valute)}`, fontSize: 9, color: '#555555', alignment: 'right' }
+            ]
+          }
+        ],
+        margin: [0, 0, 0, 16]
+      },
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 0.5, lineColor: '#e0e0e0' }], margin: [0, 0, 0, 16] },
+      {
+        columns: [
+          {
+            stack: [
+              { text: 'IZDAVALAC', style: 'sectionLabel', margin: [0, 0, 0, 4] },
+              { text: PREDUZETNIK.naziv, bold: true, fontSize: 10 },
+              { text: `PIB: ${PREDUZETNIK.pib}`, fontSize: 9 },
+              { text: `MB: ${PREDUZETNIK.mb}`, fontSize: 9 },
+              { text: PREDUZETNIK.adresa, fontSize: 9 },
+              { text: PREDUZETNIK.email, fontSize: 9 }
+            ]
+          },
+          {
+            stack: [
+              { text: 'PRIMALAC', style: 'sectionLabel', margin: [0, 0, 0, 4] },
+              { text: f.klijent_naziv || '—', bold: true, fontSize: 10 },
+              ...(f.klijent_pib ? [{ text: `PIB: ${f.klijent_pib}`, fontSize: 9 }] : []),
+              ...(f.klijent_mb ? [{ text: `MB: ${f.klijent_mb}`, fontSize: 9 }] : []),
+              ...(f.klijent_adresa ? [{ text: f.klijent_adresa, fontSize: 9 }] : []),
+              ...(f.klijent_email ? [{ text: f.klijent_email, fontSize: 9 }] : [])
+            ]
+          }
+        ],
+        margin: [0, 0, 0, 20]
+      },
+      {
+        table: {
+          headerRows: 1,
+          widths: [30, '*', 35, 35, 80, 80],
+          body: tableBody
+        },
+        layout: {
+          hLineWidth: (i) => i === 0 || i === 1 ? 1 : 0.5,
+          vLineWidth: () => 0,
+          hLineColor: (i) => i === 1 ? '#cccccc' : '#e0e0e0',
+          fillColor: (i) => i === 0 ? '#f3f4f6' : null
+        },
+        margin: [0, 0, 0, 16]
+      },
+      {
+        columns: [
+          { text: '', width: '*' },
+          {
+            stack: [
+              { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 200, y2: 0, lineWidth: 1.5, lineColor: '#2563eb' }] },
+              {
+                columns: [
+                  { text: 'UKUPNO ZA PLAĆANJE', style: 'totalLabel', margin: [0, 6, 0, 0] },
+                  { text: fmtAmount(f.ukupno, f.valuta), style: 'totalLabel', alignment: 'right', margin: [0, 6, 0, 0] }
+                ]
+              }
+            ],
+            width: 200
+          }
+        ],
+        margin: [0, 0, 0, 20]
+      },
+      { text: 'PODACI ZA PLAĆANJE', style: 'sectionLabel', margin: [0, 0, 0, 4] },
+      { text: paymentInfo, fontSize: 10 },
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 0.5, lineColor: '#e0e0e0' }], margin: [0, 16, 0, 8] },
+      { text: 'PDV nije obračunat na osnovu člana 33. Zakona o PDV (paušalni poreski obveznik).', style: 'footer' }
+    ]
+  };
 }
 
 async function handleRequest(request, env) {
@@ -344,28 +358,21 @@ async function handleRequest(request, env) {
     ).bind(id).first();
     if (!faktura) return err('Faktura nije pronađena', 404);
 
-    const html = buildInvoiceHtml(faktura);
-    const browser = await puppeteer.launch(env.BROWSER);
-    try {
-      const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: 'networkidle0' });
-      await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 1 });
-      await page.emulateMediaType('print');
-      const pdf = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: { top: '0', right: '0', bottom: '0', left: '0' },
-      });
-      return new Response(pdf, {
-        headers: {
-          ...CORS_HEADERS,
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="${faktura.broj}.pdf"`,
-        },
-      });
-    } finally {
-      await browser.close();
-    }
+    const printer = new PdfPrinter(fonts);
+    const docDefinition = buildPdfDefinition(faktura);
+    const pdfDoc = printer.createPdfKitDocument(docDefinition);
+    const chunks = [];
+    pdfDoc.on('data', chunk => chunks.push(chunk));
+    await new Promise(resolve => pdfDoc.on('end', resolve));
+    pdfDoc.end();
+    const pdfBuffer = Buffer.concat(chunks);
+    return new Response(pdfBuffer, {
+      headers: {
+        ...CORS_HEADERS,
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${faktura.broj}.pdf"`,
+      }
+    });
   }
 
   // === KPO ===
