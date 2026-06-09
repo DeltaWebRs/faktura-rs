@@ -358,21 +358,28 @@ async function handleRequest(request, env) {
     ).bind(id).first();
     if (!faktura) return err('Faktura nije pronađena', 404);
 
-    const printer = new PdfPrinter(fonts);
-    const docDefinition = buildPdfDefinition(faktura);
-    const pdfDoc = printer.createPdfKitDocument(docDefinition);
-    const chunks = [];
-    pdfDoc.on('data', chunk => chunks.push(chunk));
-    await new Promise(resolve => pdfDoc.on('end', resolve));
-    pdfDoc.end();
-    const pdfBuffer = Buffer.concat(chunks);
-    return new Response(pdfBuffer, {
-      headers: {
-        ...CORS_HEADERS,
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${faktura.broj}.pdf"`,
-      }
-    });
+    try {
+      const printer = new PdfPrinter(fonts);
+      const docDefinition = buildPdfDefinition(faktura);
+      const pdfDoc = printer.createPdfKitDocument(docDefinition);
+      const chunks = [];
+      pdfDoc.on('data', chunk => chunks.push(chunk));
+      await new Promise(resolve => pdfDoc.on('end', resolve));
+      pdfDoc.end();
+      const pdfBuffer = Buffer.concat(chunks);
+      return new Response(pdfBuffer, {
+        headers: {
+          ...CORS_HEADERS,
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${faktura.broj}.pdf"`,
+        }
+      });
+    } catch (error) {
+      return new Response(`PDF Error: ${error.message}\n${error.stack}`, {
+        status: 500,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'text/plain' }
+      });
+    }
   }
 
   // === KPO ===
