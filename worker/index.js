@@ -92,7 +92,7 @@ function buildInvoiceHtml(f) {
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a2e;background:#fff;margin:0;padding:0}
-.a4{width:100%;padding:15px 20px;box-sizing:border-box}
+.a4{width:1240px;padding:60px 80px;box-sizing:border-box}
 .inv-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px}
 .inv-company h2{font-size:16px;font-weight:700;color:#2563eb}
 .inv-company p{font-size:10px;color:#555;line-height:1.6;margin-top:3px}
@@ -349,12 +349,13 @@ async function handleRequest(request, env) {
     try {
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: 'networkidle0' });
-      await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 1 });
+      await page.setViewport({ width: 1240, height: 1754, deviceScaleFactor: 1 });
+      await page.emulateMediaType('screen');
       const pdf = await page.pdf({
-        width: '794px',
-        height: '1123px',
+        format: 'A4',
         printBackground: true,
-        margin: { top: '8mm', right: '8mm', bottom: '8mm', left: '8mm' },
+        scale: 0.8,
+        margin: { top: '0', right: '0', bottom: '0', left: '0' },
       });
       return new Response(pdf, {
         headers: {
