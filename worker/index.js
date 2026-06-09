@@ -91,8 +91,8 @@ function buildInvoiceHtml(f) {
 <meta charset="UTF-8">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a2e;background:#fff;margin:0;padding:0}
-.a4{width:1240px;padding:60px 80px;box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a2e;background:#fff;margin:0;padding:0;display:flex;justify-content:center}
+.a4{width:1240px;padding:60px;box-sizing:border-box;margin:0 auto}
 .inv-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px}
 .inv-company h2{font-size:16px;font-weight:700;color:#2563eb}
 .inv-company p{font-size:10px;color:#555;line-height:1.6;margin-top:3px}
