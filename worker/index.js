@@ -1,4 +1,4 @@
-import PdfPrinter from 'pdfmake';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -51,154 +51,131 @@ const PREDUZETNIK = {
   swift: 'RZBSRSBG',
 };
 
-const fonts = {
-  Helvetica: {
-    normal: 'Helvetica',
-    bold: 'Helvetica-Bold',
-    italics: 'Helvetica-Oblique',
-    bolditalics: 'Helvetica-BoldOblique'
-  }
-};
-
-function fmtDate(d) {
-  if (!d) return '—';
-  const [y, m, day] = String(d).slice(0, 10).split('-');
-  return `${day}.${m}.${y}.`;
-}
-
-function fmtAmount(amount, valuta) {
-  const num = parseFloat(amount) || 0;
-  return new Intl.NumberFormat('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num) + ' ' + (valuta || 'RSD');
-}
-
-function buildPdfDefinition(f) {
+async function buildPdf(f) {
   let stavke = [];
   try { stavke = typeof f.stavke === 'string' ? JSON.parse(f.stavke) : f.stavke; } catch {}
 
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([595, 842]);
+  const { width, height } = page.getSize();
+
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  const blue = rgb(0.145, 0.388, 0.922);
+  const dark = rgb(0.102, 0.102, 0.173);
+  const gray = rgb(0.42, 0.44, 0.5);
+
+  function fmtDate(d) {
+    if (!d) return '-';
+    const [y, m, day] = String(d).slice(0, 10).split('-');
+    return `${day}.${m}.${y}.`;
+  }
+
+  function fmtAmount(amount) {
+    const num = parseFloat(amount) || 0;
+    return num.toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' ' + (f.valuta || 'RSD');
+  }
+
+  const margin = 40;
+  let y = height - 50;
+
+  // Company name
+  page.drawText('Vhirty / Damjan Dulovic', { x: margin, y, font: fontBold, size: 16, color: blue });
+
+  // FAKTURA title
+  page.drawText('FAKTURA', { x: width - margin - 120, y, font: fontBold, size: 22, color: dark });
+
+  y -= 18;
+  page.drawText('PIB: 115739720 | MB: 68597455', { x: margin, y, font, size: 9, color: gray });
+  page.drawText(`Broj: ${f.broj}`, { x: width - margin - 120, y, font: fontBold, size: 10, color: dark });
+
+  y -= 14;
+  page.drawText('Ruze Sulman 39, 23000 Zrenjanin, Srbija', { x: margin, y, font, size: 9, color: gray });
+  page.drawText(`Datum: ${fmtDate(f.datum_izdavanja)}`, { x: width - margin - 120, y, font, size: 9, color: gray });
+
+  y -= 14;
+  page.drawText('hello@vhirty.com', { x: margin, y, font, size: 9, color: gray });
+  page.drawText(`Promet: ${fmtDate(f.datum_prometa)}`, { x: width - margin - 120, y, font, size: 9, color: gray });
+
+  y -= 14;
+  page.drawText(`Rok placanja: ${fmtDate(f.datum_valute)}`, { x: width - margin - 120, y, font, size: 9, color: gray });
+
+  // Divider
+  y -= 20;
+  page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: rgb(0.88, 0.88, 0.88) });
+
+  // Parties
+  y -= 20;
+  page.drawText('IZDAVALAC', { x: margin, y, font: fontBold, size: 8, color: gray });
+  page.drawText('PRIMALAC', { x: width/2, y, font: fontBold, size: 8, color: gray });
+
+  y -= 16;
+  page.drawText('Vhirty / Damjan Dulovic', { x: margin, y, font: fontBold, size: 10, color: dark });
+  page.drawText(f.klijent_naziv || '-', { x: width/2, y, font: fontBold, size: 10, color: dark });
+
+  const izdLines = ['PIB: 115739720', 'MB: 68597455', 'Ruze Sulman 39, 23000 Zrenjanin', 'hello@vhirty.com'];
+  const primLines = [
+    f.klijent_pib ? `PIB: ${f.klijent_pib}` : null,
+    f.klijent_mb ? `MB: ${f.klijent_mb}` : null,
+    f.klijent_adresa || null,
+    f.klijent_email || null
+  ].filter(Boolean);
+
+  const maxLines = Math.max(izdLines.length, primLines.length);
+  for (let i = 0; i < maxLines; i++) {
+    y -= 14;
+    if (izdLines[i]) page.drawText(izdLines[i], { x: margin, y, font, size: 9, color: dark });
+    if (primLines[i]) page.drawText(primLines[i], { x: width/2, y, font, size: 9, color: dark });
+  }
+
+  // Table header
+  y -= 28;
+  page.drawRectangle({ x: margin, y: y - 4, width: width - margin*2, height: 20, color: rgb(0.95, 0.96, 0.97) });
+  const cols = [margin, margin+35, margin+220, margin+265, margin+305, margin+400];
+  const headers = ['R.br.', 'Naziv usluge / proizvoda', 'Kol.', 'Jed.', 'Cijena', 'Iznos'];
+  headers.forEach((h, i) => {
+    page.drawText(h, { x: cols[i], y, font: fontBold, size: 8, color: gray });
+  });
+
+  // Table rows
+  stavke.forEach((s, idx) => {
+    y -= 22;
+    page.drawLine({ start: { x: margin, y: y - 4 }, end: { x: width - margin, y: y - 4 }, thickness: 0.3, color: rgb(0.94, 0.94, 0.94) });
+    page.drawText(`${idx + 1}.`, { x: cols[0], y, font, size: 9, color: dark });
+    page.drawText(String(s.naziv).slice(0, 35), { x: cols[1], y, font, size: 9, color: dark });
+    page.drawText(String(s.kolicina), { x: cols[2], y, font, size: 9, color: dark });
+    page.drawText(s.jedinica || 'kom', { x: cols[3], y, font, size: 9, color: dark });
+    page.drawText(fmtAmount(s.cena), { x: cols[4], y, font, size: 9, color: dark });
+    page.drawText(fmtAmount(s.ukupno), { x: cols[5], y, font: fontBold, size: 9, color: dark });
+  });
+
+  // Total
+  y -= 30;
+  page.drawLine({ start: { x: width - margin - 160, y: y + 16 }, end: { x: width - margin, y: y + 16 }, thickness: 1.5, color: blue });
+  page.drawText('UKUPNO ZA PLACANJE', { x: width - margin - 160, y, font: fontBold, size: 10, color: blue });
+  page.drawText(fmtAmount(f.ukupno), { x: width - margin - 80, y: y - 14, font: fontBold, size: 12, color: blue });
+
+  // Payment info
+  y -= 50;
+  page.drawText('PODACI ZA PLACANJE', { x: margin, y, font: fontBold, size: 8, color: gray });
+  y -= 14;
   const isDevizna = f.valuta !== 'RSD';
+  if (isDevizna) {
+    page.drawText('IBAN: RS35265100000125019277', { x: margin, y, font, size: 10, color: dark });
+    y -= 14;
+    page.drawText('SWIFT: RZBSRSBG  |  Banka: Raiffeisen banka', { x: margin, y, font, size: 10, color: dark });
+  } else {
+    page.drawText('Ziro racun: 265-2030310001425-48  |  Banka: Raiffeisen banka', { x: margin, y, font, size: 10, color: dark });
+  }
 
-  const tableBody = [
-    [
-      { text: 'R.br.', style: 'tableHeader' },
-      { text: 'Naziv usluge / proizvoda', style: 'tableHeader' },
-      { text: 'Kol.', style: 'tableHeader', alignment: 'right' },
-      { text: 'Jed.', style: 'tableHeader' },
-      { text: 'Cijena', style: 'tableHeader', alignment: 'right' },
-      { text: 'Iznos', style: 'tableHeader', alignment: 'right' }
-    ],
-    ...stavke.map((s, i) => [
-      { text: `${i + 1}.`, fontSize: 9 },
-      { text: s.naziv, fontSize: 9 },
-      { text: String(s.kolicina), fontSize: 9, alignment: 'right' },
-      { text: s.jedinica || 'kom', fontSize: 9 },
-      { text: fmtAmount(s.cena, f.valuta), fontSize: 9, alignment: 'right' },
-      { text: fmtAmount(s.ukupno, f.valuta), fontSize: 9, bold: true, alignment: 'right' }
-    ])
-  ];
+  // Footer
+  y -= 40;
+  page.drawLine({ start: { x: margin, y: y + 10 }, end: { x: width - margin, y: y + 10 }, thickness: 0.5, color: rgb(0.88, 0.88, 0.88) });
+  page.drawText('PDV nije obracunat na osnovu clana 33. Zakona o PDV (pausalni poreski obveznik).', { x: margin, y, font, size: 9, color: gray });
 
-  const paymentInfo = isDevizna
-    ? `IBAN: ${PREDUZETNIK.iban}\nSWIFT: ${PREDUZETNIK.swift}\nBanka: ${PREDUZETNIK.banka}`
-    : `Žiro račun: ${PREDUZETNIK.ziro_rsd}\nBanka: ${PREDUZETNIK.banka}`;
-
-  return {
-    pageSize: 'A4',
-    pageMargins: [40, 40, 40, 40],
-    defaultStyle: { font: 'Helvetica', fontSize: 10, color: '#1a1a2e' },
-    styles: {
-      companyName: { fontSize: 16, bold: true, color: '#2563eb' },
-      invoiceTitle: { fontSize: 22, bold: true },
-      tableHeader: { fontSize: 9, bold: true, color: '#666666', fillColor: '#f3f4f6' },
-      sectionLabel: { fontSize: 8, bold: true, color: '#888888' },
-      totalLabel: { fontSize: 12, bold: true, color: '#2563eb' },
-      footer: { fontSize: 9, color: '#888888' }
-    },
-    content: [
-      {
-        columns: [
-          {
-            stack: [
-              { text: PREDUZETNIK.naziv, style: 'companyName' },
-              { text: `PIB: ${PREDUZETNIK.pib} | MB: ${PREDUZETNIK.mb}`, fontSize: 9, color: '#555555', margin: [0, 4, 0, 0] },
-              { text: PREDUZETNIK.adresa, fontSize: 9, color: '#555555' },
-              { text: PREDUZETNIK.email, fontSize: 9, color: '#555555' }
-            ]
-          },
-          {
-            stack: [
-              { text: 'FAKTURA', style: 'invoiceTitle', alignment: 'right' },
-              { text: `Broj: ${f.broj}`, fontSize: 10, alignment: 'right', margin: [0, 4, 0, 0] },
-              { text: `Datum izdavanja: ${fmtDate(f.datum_izdavanja)}`, fontSize: 9, color: '#555555', alignment: 'right' },
-              { text: `Datum prometa: ${fmtDate(f.datum_prometa)}`, fontSize: 9, color: '#555555', alignment: 'right' },
-              { text: `Rok plaćanja: ${fmtDate(f.datum_valute)}`, fontSize: 9, color: '#555555', alignment: 'right' }
-            ]
-          }
-        ],
-        margin: [0, 0, 0, 16]
-      },
-      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 0.5, lineColor: '#e0e0e0' }], margin: [0, 0, 0, 16] },
-      {
-        columns: [
-          {
-            stack: [
-              { text: 'IZDAVALAC', style: 'sectionLabel', margin: [0, 0, 0, 4] },
-              { text: PREDUZETNIK.naziv, bold: true, fontSize: 10 },
-              { text: `PIB: ${PREDUZETNIK.pib}`, fontSize: 9 },
-              { text: `MB: ${PREDUZETNIK.mb}`, fontSize: 9 },
-              { text: PREDUZETNIK.adresa, fontSize: 9 },
-              { text: PREDUZETNIK.email, fontSize: 9 }
-            ]
-          },
-          {
-            stack: [
-              { text: 'PRIMALAC', style: 'sectionLabel', margin: [0, 0, 0, 4] },
-              { text: f.klijent_naziv || '—', bold: true, fontSize: 10 },
-              ...(f.klijent_pib ? [{ text: `PIB: ${f.klijent_pib}`, fontSize: 9 }] : []),
-              ...(f.klijent_mb ? [{ text: `MB: ${f.klijent_mb}`, fontSize: 9 }] : []),
-              ...(f.klijent_adresa ? [{ text: f.klijent_adresa, fontSize: 9 }] : []),
-              ...(f.klijent_email ? [{ text: f.klijent_email, fontSize: 9 }] : [])
-            ]
-          }
-        ],
-        margin: [0, 0, 0, 20]
-      },
-      {
-        table: {
-          headerRows: 1,
-          widths: [30, '*', 35, 35, 80, 80],
-          body: tableBody
-        },
-        layout: {
-          hLineWidth: (i) => i === 0 || i === 1 ? 1 : 0.5,
-          vLineWidth: () => 0,
-          hLineColor: (i) => i === 1 ? '#cccccc' : '#e0e0e0',
-          fillColor: (i) => i === 0 ? '#f3f4f6' : null
-        },
-        margin: [0, 0, 0, 16]
-      },
-      {
-        columns: [
-          { text: '', width: '*' },
-          {
-            stack: [
-              { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 200, y2: 0, lineWidth: 1.5, lineColor: '#2563eb' }] },
-              {
-                columns: [
-                  { text: 'UKUPNO ZA PLAĆANJE', style: 'totalLabel', margin: [0, 6, 0, 0] },
-                  { text: fmtAmount(f.ukupno, f.valuta), style: 'totalLabel', alignment: 'right', margin: [0, 6, 0, 0] }
-                ]
-              }
-            ],
-            width: 200
-          }
-        ],
-        margin: [0, 0, 0, 20]
-      },
-      { text: 'PODACI ZA PLAĆANJE', style: 'sectionLabel', margin: [0, 0, 0, 4] },
-      { text: paymentInfo, fontSize: 10 },
-      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 0.5, lineColor: '#e0e0e0' }], margin: [0, 16, 0, 8] },
-      { text: 'PDV nije obračunat na osnovu člana 33. Zakona o PDV (paušalni poreski obveznik).', style: 'footer' }
-    ]
-  };
+  const pdfBytes = await pdfDoc.save();
+  return pdfBytes;
 }
 
 async function handleRequest(request, env) {
@@ -358,28 +335,14 @@ async function handleRequest(request, env) {
     ).bind(id).first();
     if (!faktura) return err('Faktura nije pronađena', 404);
 
-    try {
-      const printer = new PdfPrinter(fonts);
-      const docDefinition = buildPdfDefinition(faktura);
-      const pdfDoc = printer.createPdfKitDocument(docDefinition);
-      const chunks = [];
-      pdfDoc.on('data', chunk => chunks.push(chunk));
-      await new Promise(resolve => pdfDoc.on('end', resolve));
-      pdfDoc.end();
-      const pdfBuffer = Buffer.concat(chunks);
-      return new Response(pdfBuffer, {
-        headers: {
-          ...CORS_HEADERS,
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="${faktura.broj}.pdf"`,
-        }
-      });
-    } catch (error) {
-      return new Response(`PDF Error: ${error.message}\n${error.stack}`, {
-        status: 500,
-        headers: { ...CORS_HEADERS, 'Content-Type': 'text/plain' }
-      });
-    }
+    const pdfBytes = await buildPdf(faktura);
+    return new Response(pdfBytes, {
+      headers: {
+        ...CORS_HEADERS,
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${faktura.broj}.pdf"`,
+      }
+    });
   }
 
   // === KPO ===

@@ -4,6 +4,6 @@
   "type": "module",
   "dependencies": {
     "@cloudflare/puppeteer": "^1.1.0",
-    "pdfmake": "^0.3.10"
+    "pdf-lib": "^1.17.1"
   }
 }
