@@ -42,7 +42,7 @@ const PREDUZETNIK = {
   email: 'hello@vhirty.com',
   ziro_rsd: '265-2030310001425-48',
   banka: 'Raiffeisen banka',
-  devizni_eur: '265-1000001250192-77',
+  iban: 'RS35265100000125019277',
   swift: 'RZBSRSBG',
 };
 
@@ -83,9 +83,9 @@ function render() {
   const isDevizna = f.valuta !== 'RSD';
 
   const paymentInfo = isDevizna
-    ? `<strong>Devizni račun:</strong> ${PREDUZETNIK.devizni_eur}<br>
-       <strong>Banka:</strong> ${PREDUZETNIK.banka}<br>
-       <strong>SWIFT:</strong> ${PREDUZETNIK.swift}`
+    ? `<strong>IBAN:</strong> ${PREDUZETNIK.iban}<br>
+       <strong>SWIFT:</strong> ${PREDUZETNIK.swift}<br>
+       <strong>Banka:</strong> ${PREDUZETNIK.banka}`
     : `<strong>Žiro račun:</strong> ${PREDUZETNIK.ziro_rsd}<br>
        <strong>Banka:</strong> ${PREDUZETNIK.banka}`;
 
