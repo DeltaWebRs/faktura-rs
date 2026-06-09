@@ -91,8 +91,8 @@ function buildInvoiceHtml(f) {
 <meta charset="UTF-8">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a2e;background:#fff;margin:0;padding:0;display:flex;justify-content:center}
-.a4{width:1240px;padding:60px;box-sizing:border-box;margin:0 auto}
+body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a2e;background:#fff;margin:0;padding:0;width:794px}
+.a4{width:100%;padding:0;box-sizing:border-box}
 .inv-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px}
 .inv-company h2{font-size:16px;font-weight:700;color:#2563eb}
 .inv-company p{font-size:10px;color:#555;line-height:1.6;margin-top:3px}
@@ -349,13 +349,12 @@ async function handleRequest(request, env) {
     try {
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: 'networkidle0' });
-      await page.setViewport({ width: 1240, height: 1754, deviceScaleFactor: 1 });
-      await page.emulateMediaType('screen');
+      await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 1 });
+      await page.emulateMediaType('print');
       const pdf = await page.pdf({
         format: 'A4',
         printBackground: true,
-        scale: 0.8,
-        margin: { top: '0', right: '0', bottom: '0', left: '0' },
+        margin: { top: '15mm', right: '15mm', bottom: '15mm', left: '15mm' },
       });
       return new Response(pdf, {
         headers: {
