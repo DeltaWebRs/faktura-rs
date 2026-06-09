@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prijava — FakturaRS</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="toast-container"></div>
+<div class="login-page">
+  <div class="login-box">
+    <div class="logo">
+      <h1>FakturaRS</h1>
+      <p>Sistem za fakturisanje</p>
+    </div>
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="password">Lozinka</label>
+        <input type="password" id="password" placeholder="Unesite lozinku" autofocus required>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:10px;">
+        Prijavi se
+      </button>
+    </form>
+  </div>
+</div>
+<script type="module">
+import { api, toast } from './api.js';
+
+if (localStorage.getItem('faktura_token')) {
+  window.location.href = 'index.html';
+}
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pw = document.getElementById('password').value;
+  try {
+    const data = await api.login(pw);
+    localStorage.setItem('faktura_token', data.token);
+    window.location.href = 'index.html';
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+});
+</script>
+</body>
+</html>

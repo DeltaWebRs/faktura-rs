@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — FakturaRS</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div id="toast-container"></div>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main-content">
+    <div class="page-header">
+      <div>
+        <h1>Dashboard</h1>
+        <p>Pregled faktura i prihoda</p>
+      </div>
+      <a href="nova-faktura.html" class="btn btn-primary">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Nova faktura
+      </a>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">Ukupno faktura</div>
+        <div class="value" id="stat-total">—</div>
+        <div class="sub">Sve fakture</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Ovaj mesec</div>
+        <div class="value" id="stat-month">—</div>
+        <div class="sub">RSD fakturisano</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Neplaćeno</div>
+        <div class="value" id="stat-unpaid" style="color:#dc2626">—</div>
+        <div class="sub">Na čekanju</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Plaćeno YTD</div>
+        <div class="value" id="stat-paid" style="color:#16a34a">—</div>
+        <div class="sub">Ova godina</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:24px">
+      <div class="card-header"><h2>Fakturisanje po mesecima (RSD)</h2></div>
+      <div class="card-body">
+        <div class="chart-wrap"><canvas id="chartMeseci"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>Fakture</h2>
+        <div class="filter-tabs">
+          <button class="filter-tab active" data-filter="sve">Sve</button>
+          <button class="filter-tab" data-filter="neplacena">Neplaćene</button>
+          <button class="filter-tab" data-filter="placena">Plaćene</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Broj</th>
+              <th>Klijent</th>
+              <th>Datum</th>
+              <th>Rok plaćanja</th>
+              <th>Iznos</th>
+              <th>Valuta</th>
+              <th>Status</th>
+              <th>Akcije</th>
+            </tr>
+          </thead>
+          <tbody id="faktureBody">
+            <tr><td colspan="8" style="text-align:center;color:var(--text-sec);padding:32px">Učitavanje...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+import { api, requireAuth, toast, formatDate, formatAmount, isOverdue, today } from './api.js';
+import { renderSidebar } from './sidebar.js';
+
+if (!requireAuth()) throw new Error('redirect');
+renderSidebar('dashboard');
+
+let allFakture = [];
+let activeFilter = 'sve';
+
+async function load() {
+  try {
+    allFakture = await api.getFakture();
+    renderStats();
+    renderChart();
+    renderTable();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function renderStats() {
+  const yr = new Date().getFullYear();
+  const mo = new Date().getMonth();
+
+  document.getElementById('stat-total').textContent = allFakture.length;
+
+  const thisMonth = allFakture.filter(f => {
+    if (!f.datum_izdavanja) return false;
+    const d = new Date(f.datum_izdavanja);
+    return d.getFullYear() === yr && d.getMonth() === mo && f.valuta === 'RSD';
+  }).reduce((s, f) => s + f.ukupno, 0);
+  document.getElementById('stat-month').textContent = formatAmount(thisMonth, 'RSD');
+
+  const unpaid = allFakture.filter(f => f.status === 'neplacena').reduce((s, f) => s + (f.valuta === 'RSD' ? f.ukupno : 0), 0);
+  document.getElementById('stat-unpaid').textContent = formatAmount(unpaid, 'RSD');
+
+  const paid = allFakture.filter(f => {
+    if (f.status !== 'placena' || f.valuta !== 'RSD') return false;
+    const d = new Date(f.datum_izdavanja);
+    return d.getFullYear() === yr;
+  }).reduce((s, f) => s + f.ukupno, 0);
+  document.getElementById('stat-paid').textContent = formatAmount(paid, 'RSD');
+}
+
+let chart;
+function renderChart() {
+  const yr = new Date().getFullYear();
+  const labels = ['Jan','Feb','Mar','Apr','Maj','Jun','Jul','Avg','Sep','Okt','Nov','Dec'];
+  const data = Array(12).fill(0);
+  allFakture.forEach(f => {
+    if (!f.datum_izdavanja || f.valuta !== 'RSD') return;
+    const d = new Date(f.datum_izdavanja);
+    if (d.getFullYear() === yr) data[d.getMonth()] += f.ukupno;
+  });
+
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById('chartMeseci'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'RSD',
+        data,
+        backgroundColor: 'rgba(37,99,235,0.18)',
+        borderColor: 'rgba(37,99,235,0.8)',
+        borderWidth: 1.5,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: '#f0f0f0' }, ticks: { font: { size: 11 } } },
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+function statusBadge(f) {
+  if (isOverdue(f)) return `<span class="badge badge-overdue">Prekoračeno</span>`;
+  if (f.status === 'placena') return `<span class="badge badge-green">Plaćena</span>`;
+  if (f.status === 'otkazana') return `<span class="badge badge-gray">Otkazana</span>`;
+  return `<span class="badge badge-red">Neplaćena</span>`;
+}
+
+function renderTable() {
+  const list = activeFilter === 'sve' ? allFakture : allFakture.filter(f => f.status === activeFilter);
+  const tbody = document.getElementById('faktureBody');
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-sec);padding:32px">Nema faktura</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map(f => `
+    <tr>
+      <td><strong>${f.broj}</strong></td>
+      <td>${f.klijent_naziv || '—'}</td>
+      <td>${formatDate(f.datum_izdavanja)}</td>
+      <td style="${isOverdue(f) ? 'color:#dc2626;font-weight:600' : ''}">${formatDate(f.datum_valute)}</td>
+      <td><strong>${formatAmount(f.ukupno, f.valuta)}</strong></td>
+      <td>${f.valuta}</td>
+      <td>${statusBadge(f)}</td>
+      <td>
+        <div class="actions">
+          <a href="faktura.html?id=${f.id}" class="btn btn-secondary btn-sm">Pregled</a>
+          <button class="btn btn-sm ${f.status === 'placena' ? 'btn-secondary' : 'btn-success'}"
+            onclick="toggleStatus(${f.id}, '${f.status}')">
+            ${f.status === 'placena' ? 'Označi neplaćenom' : 'Označi plaćenom'}
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="deleteFaktura(${f.id})">Obriši</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+window.toggleStatus = async (id, currentStatus) => {
+  const newStatus = currentStatus === 'placena' ? 'neplacena' : 'placena';
+  try {
+    await api.updateStatus(id, newStatus);
+    toast(`Status promijenjen na "${newStatus === 'placena' ? 'plaćena' : 'neplaćena'}"`, 'success');
+    await load();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+};
+
+window.deleteFaktura = async (id) => {
+  if (!confirm('Obrisati ovu fakturu? Ova akcija se ne može poništiti.')) return;
+  try {
+    await api.deleteFaktura(id);
+    toast('Faktura obrisana', 'success');
+    await load();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+};
+
+document.querySelectorAll('.filter-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeFilter = btn.dataset.filter;
+    renderTable();
+  });
+});
+
+load();
+</script>
+</body>
+</html>

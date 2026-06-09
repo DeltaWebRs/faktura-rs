@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KPO — FakturaRS</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+<div id="toast-container"></div>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main-content">
+    <div class="page-header">
+      <div>
+        <h1>KPO — Knjiga prometa</h1>
+        <p>Pregled i izvoz podataka za KPO</p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-body">
+        <div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
+          <div class="form-group" style="margin:0">
+            <label>Od datuma</label>
+            <input type="date" id="od">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>Do datuma</label>
+            <input type="date" id="do">
+          </div>
+          <button class="btn btn-primary" id="btnGeneriši">Generiši</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="kpoCard" style="display:none">
+      <div class="card-header">
+        <h2>Knjiga prometa</h2>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary btn-sm" id="btnExportPdf">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            PDF
+          </button>
+          <button class="btn btn-secondary btn-sm" id="btnExportXlsx">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18M10 3v18M14 3v18"/></svg>
+            Excel
+          </button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="kpoTable">
+          <thead>
+            <tr>
+              <th>R.br.</th>
+              <th>Datum</th>
+              <th>Broj fakture</th>
+              <th>Naziv klijenta</th>
+              <th>Iznos</th>
+              <th>Valuta</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="kpoBody">
+          </tbody>
+          <tfoot id="kpoFoot"></tfoot>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+import { api, requireAuth, toast, formatDate, formatAmount } from './api.js';
+import { renderSidebar } from './sidebar.js';
+
+if (!requireAuth()) throw new Error('redirect');
+renderSidebar('kpo');
+
+// Default to current year
+const yr = new Date().getFullYear();
+document.getElementById('od').value = `${yr}-01-01`;
+document.getElementById('do').value = `${yr}-12-31`;
+
+let kpoData = [];
+
+async function generiši() {
+  const od = document.getElementById('od').value;
+  const do_ = document.getElementById('do').value;
+  if (!od || !do_) { toast('Unesite oba datuma', 'error'); return; }
+  if (od > do_) { toast('Datum "od" mora biti prije datuma "do"', 'error'); return; }
+
+  try {
+    kpoData = await api.getKpo(od, do_);
+    renderTable();
+    document.getElementById('kpoCard').style.display = '';
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function statusLabel(s) {
+  if (s === 'placena') return 'Plaćena';
+  if (s === 'otkazana') return 'Otkazana';
+  return 'Neplaćena';
+}
+
+function renderTable() {
+  const tbody = document.getElementById('kpoBody');
+  const tfoot = document.getElementById('kpoFoot');
+
+  if (!kpoData.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-sec);padding:32px">Nema faktura u odabranom periodu</td></tr>`;
+    tfoot.innerHTML = '';
+    return;
+  }
+
+  tbody.innerHTML = kpoData.map((f, i) => `
+    <tr>
+      <td>${i + 1}.</td>
+      <td>${formatDate(f.datum_izdavanja)}</td>
+      <td><a href="faktura.html?id=${f.id}" style="color:var(--accent)">${f.broj}</a></td>
+      <td>${f.klijent_naziv || '—'}</td>
+      <td><strong>${formatAmount(f.ukupno, f.valuta)}</strong></td>
+      <td>${f.valuta}</td>
+      <td>
+        <span class="badge ${f.status === 'placena' ? 'badge-green' : 'badge-red'}">
+          ${statusLabel(f.status)}
+        </span>
+      </td>
+    </tr>
+  `).join('');
+
+  const totalRsd = kpoData.filter(f => f.valuta === 'RSD').reduce((s, f) => s + f.ukupno, 0);
+  const totalEur = kpoData.filter(f => f.valuta === 'EUR').reduce((s, f) => s + f.ukupno, 0);
+  const totalUsd = kpoData.filter(f => f.valuta === 'USD').reduce((s, f) => s + f.ukupno, 0);
+
+  let totals = [];
+  if (totalRsd > 0) totals.push(formatAmount(totalRsd, 'RSD'));
+  if (totalEur > 0) totals.push(formatAmount(totalEur, 'EUR'));
+  if (totalUsd > 0) totals.push(formatAmount(totalUsd, 'USD'));
+
+  tfoot.innerHTML = `
+    <tr style="background:#f9fafb">
+      <td colspan="4" style="padding:10px 14px;font-weight:600;font-size:13px">UKUPNO (${kpoData.length} faktura)</td>
+      <td colspan="3" style="padding:10px 14px;font-weight:700;color:var(--accent);font-size:14px">${totals.join(' + ')}</td>
+    </tr>
+  `;
+}
+
+document.getElementById('btnGeneriši').addEventListener('click', generiši);
+
+document.getElementById('btnExportPdf').addEventListener('click', () => {
+  const el = document.getElementById('kpoTable');
+  const opt = {
+    margin: 10,
+    filename: `KPO-${document.getElementById('od').value}-${document.getElementById('do').value}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2 },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+  };
+  html2pdf().set(opt).from(el).save();
+});
+
+document.getElementById('btnExportXlsx').addEventListener('click', () => {
+  const od = document.getElementById('od').value;
+  const do_ = document.getElementById('do').value;
+
+  const data = [
+    ['R.br.', 'Datum', 'Broj fakture', 'Naziv klijenta', 'Iznos', 'Valuta', 'Status'],
+    ...kpoData.map((f, i) => [
+      i + 1,
+      f.datum_izdavanja,
+      f.broj,
+      f.klijent_naziv || '',
+      f.ukupno,
+      f.valuta,
+      statusLabel(f.status),
+    ])
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [{ wch: 6 }, { wch: 12 }, { wch: 16 }, { wch: 32 }, { wch: 14 }, { wch: 8 }, { wch: 12 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'KPO');
+  XLSX.writeFile(wb, `KPO-${od}-${do_}.xlsx`);
+});
+</script>
+</body>
+</html>

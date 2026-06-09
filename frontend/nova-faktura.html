@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nova faktura — FakturaRS</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="toast-container"></div>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main-content">
+    <div class="page-header">
+      <div>
+        <h1>Nova faktura</h1>
+        <p>Kreiranje nove fakture</p>
+      </div>
+    </div>
+
+    <div class="nova-grid">
+      <!-- Lijeva kolona: detalji -->
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><h2>Detalji fakture</h2></div>
+          <div class="card-body">
+            <div class="form-group">
+              <label>Klijent *</label>
+              <select id="klijentSelect">
+                <option value="">— Odaberite klijenta —</option>
+              </select>
+              <a href="klijenti.html" style="font-size:12px;color:var(--accent);margin-top:4px;display:inline-block">+ Novi klijent</a>
+            </div>
+            <div class="form-group">
+              <label>Valuta</label>
+              <select id="valuta">
+                <option value="RSD">RSD — Srpski dinar</option>
+                <option value="EUR">EUR — Euro</option>
+                <option value="USD">USD — Američki dolar</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Datum izdavanja</label>
+              <input type="date" id="datumIzdavanja">
+            </div>
+            <div class="form-group">
+              <label>Datum prometa</label>
+              <input type="date" id="datumPrometa">
+            </div>
+            <div class="form-group">
+              <label>Datum valute (rok plaćanja)</label>
+              <input type="date" id="datumValute">
+            </div>
+            <div class="form-group">
+              <label>Napomena</label>
+              <textarea id="napomena" placeholder="Opcionalna napomena na fakturi..."></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desna kolona: stavke -->
+      <div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Stavke</h2>
+            <button class="btn btn-secondary btn-sm" id="btnDodajStavku">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+              Dodaj stavku
+            </button>
+          </div>
+          <div class="card-body">
+            <div class="table-wrap">
+              <table class="stavke-table">
+                <thead>
+                  <tr>
+                    <th style="width:35%">Naziv</th>
+                    <th style="width:10%">Kol.</th>
+                    <th style="width:12%">Jed.</th>
+                    <th style="width:16%">Cijena</th>
+                    <th style="width:16%">Ukupno</th>
+                    <th style="width:5%"></th>
+                  </tr>
+                </thead>
+                <tbody id="stavkeBody"></tbody>
+              </table>
+            </div>
+            <div class="total-row" id="totalRow">
+              Ukupno: <strong>0.00 RSD</strong>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+          <a href="index.html" class="btn btn-secondary">Otkaži</a>
+          <button class="btn btn-primary" id="btnSacuvaj">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            Sačuvaj fakturu
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+import { api, requireAuth, toast, today, addDays, formatAmount } from './api.js';
+import { renderSidebar } from './sidebar.js';
+
+if (!requireAuth()) throw new Error('redirect');
+renderSidebar('nova');
+
+const JEDINICE = ['kom', 'sat', 'dan', 'mesec', 'god', 'paušal', 'usluga', 'kg', 'm', 'm²', 'l'];
+
+// Set defaults
+const t = today();
+document.getElementById('datumIzdavanja').value = t;
+document.getElementById('datumPrometa').value = t;
+document.getElementById('datumValute').value = addDays(t, 30);
+
+document.getElementById('datumIzdavanja').addEventListener('change', (e) => {
+  document.getElementById('datumValute').value = addDays(e.target.value, 30);
+});
+
+// Load klijenti
+async function loadKlijenti() {
+  try {
+    const klijenti = await api.getKlijenti();
+    const sel = document.getElementById('klijentSelect');
+    klijenti.forEach(k => {
+      const opt = document.createElement('option');
+      opt.value = k.id;
+      opt.textContent = k.naziv + (k.drzava && k.drzava !== 'Srbija' ? ` (${k.drzava})` : '');
+      if (k.valuta) opt.dataset.valuta = k.valuta;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', () => {
+      const selected = sel.options[sel.selectedIndex];
+      if (selected.dataset.valuta) {
+        document.getElementById('valuta').value = selected.dataset.valuta;
+        recalc();
+      }
+    });
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// Stavke
+let stavke = [];
+
+function addStavka() {
+  stavke.push({ naziv: '', kolicina: 1, jedinica: 'kom', cena: 0, ukupno: 0 });
+  renderStavke();
+}
+
+function removeStavka(i) {
+  stavke.splice(i, 1);
+  renderStavke();
+}
+
+function updateStavka(i, field, value) {
+  stavke[i][field] = field === 'naziv' || field === 'jedinica' ? value : parseFloat(value) || 0;
+  stavke[i].ukupno = stavke[i].kolicina * stavke[i].cena;
+  renderStavke();
+}
+
+function recalc() {
+  const val = document.getElementById('valuta').value;
+  const total = stavke.reduce((s, st) => s + st.ukupno, 0);
+  document.getElementById('totalRow').innerHTML = `Ukupno: <strong>${formatAmount(total, val)}</strong>`;
+}
+
+function renderStavke() {
+  const tbody = document.getElementById('stavkeBody');
+  tbody.innerHTML = stavke.map((s, i) => `
+    <tr>
+      <td><input type="text" value="${s.naziv}" placeholder="Naziv usluge/proizvoda"
+        onchange="window.updateStavka(${i}, 'naziv', this.value)"
+        oninput="window.updateStavka(${i}, 'naziv', this.value)"></td>
+      <td><input type="number" value="${s.kolicina}" min="0.01" step="0.01"
+        onchange="window.updateStavka(${i}, 'kolicina', this.value)"></td>
+      <td>
+        <select onchange="window.updateStavka(${i}, 'jedinica', this.value)">
+          ${JEDINICE.map(j => `<option value="${j}" ${j === s.jedinica ? 'selected' : ''}>${j}</option>`).join('')}
+        </select>
+      </td>
+      <td><input type="number" value="${s.cena}" min="0" step="0.01"
+        onchange="window.updateStavka(${i}, 'cena', this.value)"></td>
+      <td style="text-align:right;font-weight:600;white-space:nowrap">
+        ${s.ukupno.toFixed(2)}
+      </td>
+      <td><button class="del-btn" onclick="window.removeStavka(${i})">×</button></td>
+    </tr>
+  `).join('');
+  recalc();
+}
+
+window.updateStavka = updateStavka;
+window.removeStavka = removeStavka;
+
+document.getElementById('btnDodajStavku').addEventListener('click', addStavka);
+document.getElementById('valuta').addEventListener('change', recalc);
+
+// Save
+document.getElementById('btnSacuvaj').addEventListener('click', async () => {
+  const klijentId = document.getElementById('klijentSelect').value;
+  if (!klijentId) { toast('Odaberite klijenta', 'error'); return; }
+  if (!stavke.length) { toast('Dodajte bar jednu stavku', 'error'); return; }
+  const emptyStavke = stavke.filter(s => !s.naziv.trim());
+  if (emptyStavke.length) { toast('Sve stavke moraju imati naziv', 'error'); return; }
+
+  const ukupno = stavke.reduce((s, st) => s + st.ukupno, 0);
+  if (ukupno <= 0) { toast('Ukupan iznos mora biti veći od 0', 'error'); return; }
+
+  const body = {
+    klijent_id: parseInt(klijentId),
+    stavke: stavke.map(s => ({ ...s, ukupno: parseFloat(s.ukupno.toFixed(2)) })),
+    valuta: document.getElementById('valuta').value,
+    ukupno: parseFloat(ukupno.toFixed(2)),
+    datum_izdavanja: document.getElementById('datumIzdavanja').value,
+    datum_prometa: document.getElementById('datumPrometa').value,
+    datum_valute: document.getElementById('datumValute').value,
+    napomena: document.getElementById('napomena').value.trim() || null,
+  };
+
+  try {
+    const faktura = await api.createFaktura(body);
+    toast('Faktura kreirana!', 'success');
+    setTimeout(() => { window.location.href = `faktura.html?id=${faktura.id}`; }, 600);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+});
+
+loadKlijenti();
+addStavka();
+</script>
+</body>
+</html>

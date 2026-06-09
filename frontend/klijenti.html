@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Klijenti — FakturaRS</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="toast-container"></div>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main-content">
+    <div class="page-header">
+      <div>
+        <h1>Klijenti</h1>
+        <p>Upravljanje klijentima</p>
+      </div>
+      <button class="btn btn-primary" id="btnNoviKlijent">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Novi klijent
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Naziv</th>
+              <th>PIB</th>
+              <th>MB</th>
+              <th>Država</th>
+              <th>Valuta</th>
+              <th>Email</th>
+              <th>Akcije</th>
+            </tr>
+          </thead>
+          <tbody id="klijentiBody">
+            <tr><td colspan="7" style="text-align:center;color:var(--text-sec);padding:32px">Učitavanje...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">Novi klijent</h3>
+      <button class="modal-close" id="modalClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editId">
+      <div class="form-group">
+        <label>Naziv *</label>
+        <input type="text" id="fNaziv" placeholder="Naziv firme ili ime">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label>PIB</label>
+          <input type="text" id="fPib" placeholder="123456789">
+        </div>
+        <div class="form-group">
+          <label>Matični broj</label>
+          <input type="text" id="fMb" placeholder="12345678">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Adresa</label>
+        <input type="text" id="fAdresa" placeholder="Ulica, grad, poštanski broj">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="fEmail" placeholder="kontakt@firma.com">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label>Država</label>
+          <input type="text" id="fDrzava" value="Srbija">
+        </div>
+        <div class="form-group">
+          <label>Podrazumevana valuta</label>
+          <select id="fValuta">
+            <option value="RSD">RSD</option>
+            <option value="EUR">EUR</option>
+            <option value="USD">USD</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="btnCancel">Otkaži</button>
+      <button class="btn btn-primary" id="btnSave">Sačuvaj</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { api, requireAuth, toast } from './api.js';
+import { renderSidebar } from './sidebar.js';
+
+if (!requireAuth()) throw new Error('redirect');
+renderSidebar('klijenti');
+
+let klijenti = [];
+
+async function load() {
+  try {
+    klijenti = await api.getKlijenti();
+    renderTable();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function renderTable() {
+  const tbody = document.getElementById('klijentiBody');
+  if (!klijenti.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-sec);padding:32px">Nema klijenata. Dodajte prvog klijenta.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = klijenti.map(k => `
+    <tr>
+      <td><strong>${k.naziv}</strong></td>
+      <td>${k.pib || '—'}</td>
+      <td>${k.mb || '—'}</td>
+      <td>${k.drzava || '—'}</td>
+      <td><span class="badge badge-gray">${k.valuta}</span></td>
+      <td>${k.email || '—'}</td>
+      <td>
+        <div class="actions">
+          <button class="btn btn-secondary btn-sm" onclick="editKlijent(${k.id})">Izmeni</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteKlijent(${k.id})">Obriši</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function openModal(k = null) {
+  document.getElementById('editId').value = k ? k.id : '';
+  document.getElementById('modalTitle').textContent = k ? 'Izmeni klijenta' : 'Novi klijent';
+  document.getElementById('fNaziv').value = k?.naziv || '';
+  document.getElementById('fPib').value = k?.pib || '';
+  document.getElementById('fMb').value = k?.mb || '';
+  document.getElementById('fAdresa').value = k?.adresa || '';
+  document.getElementById('fEmail').value = k?.email || '';
+  document.getElementById('fDrzava').value = k?.drzava || 'Srbija';
+  document.getElementById('fValuta').value = k?.valuta || 'RSD';
+  document.getElementById('modalOverlay').classList.add('open');
+  document.getElementById('fNaziv').focus();
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+window.editKlijent = (id) => {
+  const k = klijenti.find(x => x.id === id);
+  if (k) openModal(k);
+};
+
+window.deleteKlijent = async (id) => {
+  const k = klijenti.find(x => x.id === id);
+  if (!confirm(`Obrisati klijenta "${k?.naziv}"? Ova akcija se ne može poništiti.`)) return;
+  try {
+    await api.deleteKlijent(id);
+    toast('Klijent obrisan', 'success');
+    await load();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+};
+
+document.getElementById('btnNoviKlijent').addEventListener('click', () => openModal());
+document.getElementById('modalClose').addEventListener('click', closeModal);
+document.getElementById('btnCancel').addEventListener('click', closeModal);
+document.getElementById('modalOverlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+});
+
+document.getElementById('btnSave').addEventListener('click', async () => {
+  const naziv = document.getElementById('fNaziv').value.trim();
+  if (!naziv) { toast('Naziv je obavezan', 'error'); return; }
+
+  const body = {
+    naziv,
+    pib: document.getElementById('fPib').value.trim() || null,
+    mb: document.getElementById('fMb').value.trim() || null,
+    adresa: document.getElementById('fAdresa').value.trim() || null,
+    email: document.getElementById('fEmail').value.trim() || null,
+    drzava: document.getElementById('fDrzava').value.trim() || 'Srbija',
+    valuta: document.getElementById('fValuta').value,
+  };
+
+  const id = document.getElementById('editId').value;
+  try {
+    if (id) {
+      await api.updateKlijent(id, body);
+      toast('Klijent ažuriran', 'success');
+    } else {
+      await api.createKlijent(body);
+      toast('Klijent dodat', 'success');
+    }
+    closeModal();
+    await load();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+});
+
+load();
+</script>
+</body>
+</html>
