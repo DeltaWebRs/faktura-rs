@@ -55,21 +55,31 @@ async function buildPdf(f) {
   let stavke = [];
   try { stavke = typeof f.stavke === 'string' ? JSON.parse(f.stavke) : f.stavke; } catch {}
 
+  const pageWidth = 595;
+  const pageHeight = Math.max(600, 200 + stavke.length * 25 + 350);
+
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([595, 842]);
-  const { width, height } = page.getSize();
+  const page = pdfDoc.addPage([pageWidth, pageHeight]);
 
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const font     = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-  const blue = rgb(0.145, 0.388, 0.922);
-  const dark = rgb(0.102, 0.102, 0.173);
-  const gray = rgb(0.42, 0.44, 0.5);
+  const black    = rgb(0,     0,     0);
+  const darkGray = rgb(0.2,   0.2,   0.2);
+  const medGray  = rgb(0.4,   0.4,   0.4);
+  const lineGray = rgb(0.8,   0.8,   0.8);
+  const darkBg   = rgb(0.133, 0.133, 0.133);
+  const gold     = rgb(0.831, 0.686, 0.216);
+  const white    = rgb(1,     1,     1);
+  const altRow   = rgb(0.976, 0.976, 0.976);
+
+  const margin = 40;
+  const cw = pageWidth - margin * 2;
 
   function fmtDate(d) {
     if (!d) return '-';
-    const [y, m, day] = String(d).slice(0, 10).split('-');
-    return `${day}.${m}.${y}.`;
+    const [yr, mo, dy] = String(d).slice(0, 10).split('-');
+    return `${dy}.${mo}.${yr}.`;
   }
 
   function fmtAmount(amount) {
@@ -77,102 +87,157 @@ async function buildPdf(f) {
     return num.toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' ' + (f.valuta || 'RSD');
   }
 
-  const margin = 40;
-  let y = height - 50;
+  // ── 1. HEADER ────────────────────────────────────────────────────────────
+  // Vhirty logo: V-chevron shape, normalised to (0,0)-(380,365)
+  // pdf-lib negates SVG Y: y param places SVG y=0 (top of shape) in PDF space
+  const logoPath = 'M0,0 L105,0 L190,310 L275,0 L380,0 L218,330 Q190,365 162,330 Z';
+  const logoScale = 28 / 365;
+  const logoW    = 380 * logoScale;   // ~29pt
+  const logoTopY = pageHeight - 22;   // SVG y=0 placed here → logo top in PDF
 
-  // Company name
-  page.drawText('Vhirty / Damjan Dulovic', { x: margin, y, font: fontBold, size: 16, color: blue });
+  page.drawSvgPath(logoPath, { x: margin, y: logoTopY, scale: logoScale, color: gold });
 
-  // FAKTURA title
-  page.drawText('FAKTURA', { x: width - margin - 120, y, font: fontBold, size: 22, color: dark });
+  page.drawText('Vhirty', {
+    x: margin + logoW + 6, y: logoTopY - 10,
+    font: fontBold, size: 13, color: black,
+  });
+  page.drawText('Damjan Dulovic', {
+    x: margin + logoW + 6, y: logoTopY - 22,
+    font, size: 8, color: medGray,
+  });
 
-  y -= 18;
-  page.drawText('PIB: 115739720 | MB: 68597455', { x: margin, y, font, size: 9, color: gray });
-  page.drawText(`Broj: ${f.broj}`, { x: width - margin - 120, y, font: fontBold, size: 10, color: dark });
+  const invoiceW = fontBold.widthOfTextAtSize('INVOICE', 28);
+  page.drawText('INVOICE', {
+    x: pageWidth - margin - invoiceW, y: logoTopY - 12,
+    font: fontBold, size: 28, color: darkGray,
+  });
 
-  y -= 14;
-  page.drawText('Ruze Sulman 39, 23000 Zrenjanin, Srbija', { x: margin, y, font, size: 9, color: gray });
-  page.drawText(`Datum: ${fmtDate(f.datum_izdavanja)}`, { x: width - margin - 120, y, font, size: 9, color: gray });
+  // ── 2. DARK TOP BAR ───────────────────────────────────────────────────────
+  const barH     = 8;
+  const topBarY  = pageHeight - 68;
+  page.drawRectangle({ x: 0, y: topBarY, width: pageWidth, height: barH, color: darkBg });
 
-  y -= 14;
-  page.drawText('hello@vhirty.com', { x: margin, y, font, size: 9, color: gray });
-  page.drawText(`Promet: ${fmtDate(f.datum_prometa)}`, { x: width - margin - 120, y, font, size: 9, color: gray });
+  // ── 3. INVOICE TO section ─────────────────────────────────────────────────
+  let y = topBarY - 25;
+  const rightColX = pageWidth / 2 + 30;
 
-  y -= 14;
-  page.drawText(`Rok placanja: ${fmtDate(f.datum_valute)}`, { x: width - margin - 120, y, font, size: 9, color: gray });
-
-  // Divider
-  y -= 20;
-  page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: rgb(0.88, 0.88, 0.88) });
-
-  // Parties
-  y -= 20;
-  page.drawText('IZDAVALAC', { x: margin, y, font: fontBold, size: 8, color: gray });
-  page.drawText('PRIMALAC', { x: width/2, y, font: fontBold, size: 8, color: gray });
+  page.drawText('INVOICE TO:', { x: margin, y, font: fontBold, size: 8, color: medGray });
+  page.drawText(`Invoice No: ${f.broj}`, { x: rightColX, y, font: fontBold, size: 9, color: darkGray });
 
   y -= 16;
-  page.drawText('Vhirty / Damjan Dulovic', { x: margin, y, font: fontBold, size: 10, color: dark });
-  page.drawText(f.klijent_naziv || '-', { x: width/2, y, font: fontBold, size: 10, color: dark });
+  page.drawText(f.klijent_naziv || '-', { x: margin, y, font: fontBold, size: 11, color: black });
+  page.drawText(`Date: ${fmtDate(f.datum_izdavanja)}`, { x: rightColX, y, font, size: 9, color: darkGray });
 
-  const izdLines = ['PIB: 115739720', 'MB: 68597455', 'Ruze Sulman 39, 23000 Zrenjanin', 'hello@vhirty.com'];
-  const primLines = [
-    f.klijent_pib ? `PIB: ${f.klijent_pib}` : null,
-    f.klijent_mb ? `MB: ${f.klijent_mb}` : null,
-    f.klijent_adresa || null,
-    f.klijent_email || null
-  ].filter(Boolean);
-
-  const maxLines = Math.max(izdLines.length, primLines.length);
-  for (let i = 0; i < maxLines; i++) {
-    y -= 14;
-    if (izdLines[i]) page.drawText(izdLines[i], { x: margin, y, font, size: 9, color: dark });
-    if (primLines[i]) page.drawText(primLines[i], { x: width/2, y, font, size: 9, color: dark });
+  y -= 14;
+  if (f.klijent_email) {
+    page.drawText(f.klijent_email, { x: margin, y, font, size: 9, color: darkGray });
+    y -= 12;
+  }
+  if (f.klijent_adresa) {
+    page.drawText(String(f.klijent_adresa).slice(0, 55), { x: margin, y, font, size: 9, color: darkGray });
+    y -= 12;
   }
 
-  // Table header
-  y -= 28;
-  page.drawRectangle({ x: margin, y: y - 4, width: width - margin*2, height: 20, color: rgb(0.95, 0.96, 0.97) });
-  const cols = [margin, margin+35, margin+220, margin+265, margin+305, margin+400];
-  const headers = ['R.br.', 'Naziv usluge / proizvoda', 'Kol.', 'Jed.', 'Cijena', 'Iznos'];
-  headers.forEach((h, i) => {
-    page.drawText(h, { x: cols[i], y, font: fontBold, size: 8, color: gray });
-  });
+  y -= 18;
 
-  // Table rows
+  // ── 4. TABLE ──────────────────────────────────────────────────────────────
+  const tableHeaderH = 20;
+  const rowH         = 22;
+
+  const c0 = margin + 4;
+  const c1 = margin + cw * 0.50;
+  const c2 = margin + cw * 0.61;
+  const c3 = margin + cw * 0.73;
+  const c4 = margin + cw * 0.86;
+
+  page.drawRectangle({ x: margin, y: y - tableHeaderH, width: cw, height: tableHeaderH, color: darkBg });
+
+  const thY = y - 14;
+  page.drawText('PRODUCT',   { x: c0, y: thY, font: fontBold, size: 8, color: white });
+  page.drawText('QTY',       { x: c1, y: thY, font: fontBold, size: 8, color: white });
+  page.drawText('JED. MERE', { x: c2, y: thY, font: fontBold, size: 8, color: white });
+  page.drawText('PRICE',     { x: c3, y: thY, font: fontBold, size: 8, color: white });
+  page.drawText('TOTAL',     { x: c4, y: thY, font: fontBold, size: 8, color: white });
+
+  y -= tableHeaderH;
+
   stavke.forEach((s, idx) => {
-    y -= 22;
-    page.drawLine({ start: { x: margin, y: y - 4 }, end: { x: width - margin, y: y - 4 }, thickness: 0.3, color: rgb(0.94, 0.94, 0.94) });
-    page.drawText(`${idx + 1}.`, { x: cols[0], y, font, size: 9, color: dark });
-    page.drawText(String(s.naziv).slice(0, 35), { x: cols[1], y, font, size: 9, color: dark });
-    page.drawText(String(s.kolicina), { x: cols[2], y, font, size: 9, color: dark });
-    page.drawText(s.jedinica || 'kom', { x: cols[3], y, font, size: 9, color: dark });
-    page.drawText(fmtAmount(s.cena), { x: cols[4], y, font, size: 9, color: dark });
-    page.drawText(fmtAmount(s.ukupno), { x: cols[5], y, font: fontBold, size: 9, color: dark });
+    const rowTopY    = y - idx * rowH;
+    const rowBottomY = rowTopY - rowH;
+    const textY      = rowBottomY + 7;
+
+    if (idx % 2 === 1) {
+      page.drawRectangle({ x: margin, y: rowBottomY, width: cw, height: rowH, color: altRow });
+    }
+    page.drawLine({
+      start: { x: margin, y: rowBottomY }, end: { x: margin + cw, y: rowBottomY },
+      thickness: 0.5, color: lineGray,
+    });
+
+    page.drawText(String(s.naziv  || '').slice(0, 42), { x: c0, y: textY, font,     size: 9, color: darkGray });
+    page.drawText(String(s.kolicina || ''),             { x: c1, y: textY, font,     size: 9, color: darkGray });
+    page.drawText(s.jedinica || 'kom',                  { x: c2, y: textY, font,     size: 9, color: darkGray });
+    page.drawText(fmtAmount(s.cena),                    { x: c3, y: textY, font,     size: 9, color: darkGray });
+    page.drawText(fmtAmount(s.ukupno),                  { x: c4, y: textY, font: fontBold, size: 9, color: darkGray });
   });
 
-  // Total
-  y -= 30;
-  page.drawLine({ start: { x: width - margin - 160, y: y + 16 }, end: { x: width - margin, y: y + 16 }, thickness: 1.5, color: blue });
-  page.drawText('UKUPNO ZA PLACANJE', { x: width - margin - 160, y, font: fontBold, size: 10, color: blue });
-  page.drawText(fmtAmount(f.ukupno), { x: width - margin - 80, y: y - 14, font: fontBold, size: 12, color: blue });
+  y -= stavke.length * rowH;
 
-  // Payment info
-  y -= 50;
-  page.drawText('PODACI ZA PLACANJE', { x: margin, y, font: fontBold, size: 8, color: gray });
-  y -= 14;
+  // ── 5. SUBTOTAL ───────────────────────────────────────────────────────────
+  y -= 20;
+  const subtotalLabelX = margin + cw * 0.58;
+  const subtotalValueX = margin + cw * 0.78;
+
+  page.drawLine({
+    start: { x: subtotalLabelX, y: y + 18 }, end: { x: margin + cw, y: y + 18 },
+    thickness: 0.5, color: lineGray,
+  });
+  page.drawText('Ukupno:', { x: subtotalLabelX, y, font: fontBold, size: 10, color: darkGray });
+  page.drawText(fmtAmount(f.ukupno), { x: subtotalValueX, y, font: fontBold, size: 10, color: black });
+
+  y -= 35;
+
+  // ── 6. PAYMENT INFORMATION ────────────────────────────────────────────────
+  page.drawText('Payment Information:', { x: margin, y, font: fontBold, size: 10, color: darkGray });
+  y -= 15;
+
   const isDevizna = f.valuta !== 'RSD';
   if (isDevizna) {
-    page.drawText('IBAN: RS35265100000125019277', { x: margin, y, font, size: 10, color: dark });
-    y -= 14;
-    page.drawText('SWIFT: RZBSRSBG  |  Banka: Raiffeisen banka', { x: margin, y, font, size: 10, color: dark });
+    page.drawText('IBAN: RS35265100000125019277', { x: margin, y, font, size: 9, color: darkGray });
+    y -= 12;
+    page.drawText('SWIFT: RZBSRSBG', { x: margin, y, font, size: 9, color: darkGray });
+    y -= 12;
+    page.drawText('Banka: Raiffeisen banka', { x: margin, y, font, size: 9, color: darkGray });
   } else {
-    page.drawText('Ziro racun: 265-2030310001425-48  |  Banka: Raiffeisen banka', { x: margin, y, font, size: 10, color: dark });
+    page.drawText('Ziro racun: 265-2030310001425-48', { x: margin, y, font, size: 9, color: darkGray });
+    y -= 12;
+    page.drawText('Banka: Raiffeisen banka', { x: margin, y, font, size: 9, color: darkGray });
   }
 
-  // Footer
-  y -= 40;
-  page.drawLine({ start: { x: margin, y: y + 10 }, end: { x: width - margin, y: y + 10 }, thickness: 0.5, color: rgb(0.88, 0.88, 0.88) });
-  page.drawText('PDV nije obracunat na osnovu clana 33. Zakona o PDV (pausalni poreski obveznik).', { x: margin, y, font, size: 9, color: gray });
+  y -= 25;
+
+  // ── 7. "Hvala na poverenju!" ──────────────────────────────────────────────
+  page.drawText('Hvala na poverenju!', { x: margin, y, font: fontBold, size: 11, color: darkGray });
+
+  // ── 8. DARK FOOTER BAR ────────────────────────────────────────────────────
+  const footerBarY = 48;
+  page.drawRectangle({ x: 0, y: footerBarY, width: pageWidth, height: barH, color: darkBg });
+
+  // ── 9. FOOTER TEXT ────────────────────────────────────────────────────────
+  const footerText = 'Ruze Sulman 39, 23000 Zrenjanin  |  hello@vhirty.com  |  vhirty.com';
+  const ftW = font.widthOfTextAtSize(footerText, 8);
+  page.drawText(footerText, {
+    x: (pageWidth - ftW) / 2, y: footerBarY - 14,
+    font, size: 8, color: medGray,
+  });
+
+  // ── 10. PDV NAPOMENA ──────────────────────────────────────────────────────
+  const pdvText = 'PDV nije obracunat na osnovu clana 33. Zakona o PDV (pausalni poreski obveznik).';
+  const pdvW = font.widthOfTextAtSize(pdvText, 7);
+  page.drawText(pdvText, {
+    x: (pageWidth - pdvW) / 2, y: footerBarY - 27,
+    font, size: 7, color: lineGray,
+  });
 
   const pdfBytes = await pdfDoc.save();
   return pdfBytes;
