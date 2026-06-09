@@ -457,7 +457,7 @@ td { padding: 10px 14px; font-size: 13.5px; }
   background: #fff;
   width: 794px;
   min-height: 1123px;
-  padding: 60px 56px;
+  padding: 60px 56px 40px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.15);
   font-family: 'Inter', sans-serif;
   font-size: 13px;

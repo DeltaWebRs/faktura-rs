@@ -185,11 +185,12 @@ function render() {
 document.getElementById('btnDownload').addEventListener('click', () => {
   const el = document.getElementById('a4Content');
   const opt = {
-    margin: 0,
+    margin: [10, 10, 10, 10],
     filename: `${faktura?.broj || 'faktura'}.pdf`,
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak: { mode: 'avoid-all' },
   };
   html2pdf().set(opt).from(el).save();
 });
