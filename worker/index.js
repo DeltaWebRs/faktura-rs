@@ -91,31 +91,31 @@ function buildInvoiceHtml(f) {
 <meta charset="UTF-8">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1a1a2e;background:#fff;padding:0}
-.a4{width:100%;padding:20px 30px;box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a2e;background:#fff;margin:0;padding:0}
+.a4{width:100%;padding:15px 20px;box-sizing:border-box}
 .inv-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px}
-.inv-company h2{font-size:20px;font-weight:700;color:#2563eb}
-.inv-company p{font-size:11.5px;color:#555;line-height:1.7;margin-top:4px}
+.inv-company h2{font-size:16px;font-weight:700;color:#2563eb}
+.inv-company p{font-size:10px;color:#555;line-height:1.6;margin-top:3px}
 .inv-title{text-align:right}
-.inv-title h1{font-size:26px;font-weight:700;letter-spacing:2px;color:#1a1a2e}
-.inv-title .inv-number{font-size:13px;color:#6b7280;margin-top:4px}
-.inv-title .inv-date{font-size:11.5px;color:#6b7280;margin-top:2px}
+.inv-title h1{font-size:22px;font-weight:700;letter-spacing:2px;color:#1a1a2e}
+.inv-title .inv-number{font-size:11px;color:#6b7280;margin-top:4px}
+.inv-title .inv-date{font-size:10px;color:#6b7280;margin-top:2px}
 .inv-parties{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-bottom:32px}
-.inv-party h4{font-size:10.5px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px}
-.inv-party p{font-size:12px;line-height:1.8;color:#333}
+.inv-party h4{font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px}
+.inv-party p{font-size:10px;line-height:1.7;color:#333}
 .inv-party strong{color:#1a1a2e}
 table.inv-table{width:100%;border-collapse:collapse;margin-bottom:20px}
-.inv-table th{background:#f3f4f6;padding:8px 10px;font-size:11px;font-weight:700;color:#6b7280;text-align:left;border-bottom:2px solid #e0e0e0;text-transform:uppercase}
-.inv-table td{padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12.5px}
+.inv-table th{background:#f3f4f6;padding:6px 8px;font-size:9px;font-weight:700;color:#6b7280;text-align:left;border-bottom:2px solid #e0e0e0;text-transform:uppercase}
+.inv-table td{padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:10px}
 .inv-table tr:last-child td{border-bottom:none}
 .inv-totals{display:flex;justify-content:flex-end;margin-bottom:32px}
 .inv-totals-box{width:260px}
-.total-grand{display:flex;justify-content:space-between;padding:8px 0 0;font-size:15px;font-weight:700;color:#2563eb}
+.total-grand{display:flex;justify-content:space-between;padding:8px 0 0;font-size:13px;font-weight:700;color:#2563eb}
 .inv-payment{margin-bottom:20px}
-.inv-payment h4{font-size:10.5px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px}
-.inv-payment p{font-size:12px;line-height:1.8;color:#333}
+.inv-payment h4{font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px}
+.inv-payment p{font-size:10px;line-height:1.8;color:#333}
 .inv-footer{border-top:1px solid #e0e0e0;padding-top:14px;margin-top:auto}
-.inv-footer p{font-size:10.5px;color:#6b7280;line-height:1.7}
+.inv-footer p{font-size:9px;color:#6b7280;line-height:1.7}
 </style>
 </head>
 <body>
@@ -354,7 +354,7 @@ async function handleRequest(request, env) {
         width: '794px',
         height: '1123px',
         printBackground: true,
-        margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
+        margin: { top: '8mm', right: '8mm', bottom: '8mm', left: '8mm' },
       });
       return new Response(pdf, {
         headers: {
