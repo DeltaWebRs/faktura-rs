@@ -5,19 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Faktura — FakturaRS</title>
   <link rel="stylesheet" href="style.css">
-  <style>
-    @media print {
-      body * { visibility: hidden; }
-      #a4Content, #a4Content * { visibility: visible; }
-      #a4Content { position: absolute; left: 0; top: 0; width: 100%; }
-      .no-print { display: none !important; }
-    }
-  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 <div id="toast-container"></div>
 
-<div class="invoice-actions-bar no-print" id="actionsBar">
+<div class="invoice-actions-bar" id="actionsBar">
   <a href="index.html" class="btn btn-secondary btn-sm">← Nazad</a>
   <button class="btn btn-secondary btn-sm" id="btnDownload">
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
@@ -190,7 +183,16 @@ function render() {
 }
 
 document.getElementById('btnDownload').addEventListener('click', () => {
-  window.print();
+  const el = document.getElementById('a4Content');
+  const opt = {
+    margin: [10, 10, 10, 10],
+    filename: `${faktura?.broj || 'faktura'}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak: { mode: 'avoid-all' },
+  };
+  html2pdf().set(opt).from(el).save();
 });
 
 document.getElementById('btnToggleStatus').addEventListener('click', async () => {
