@@ -1,4 +1,4 @@
-const API_BASE = 'https://faktura-rs-worker.REPLACE_SUBDOMAIN.workers.dev';
+const API_BASE = 'https://faktura-rs-worker.workers-rs.workers.dev';
 
 function getToken() {
   return localStorage.getItem('faktura_token') || '';
