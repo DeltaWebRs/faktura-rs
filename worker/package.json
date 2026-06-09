@@ -1,0 +1,8 @@
+{
+  "name": "faktura-rs-worker",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@cloudflare/puppeteer": "^0.0.1"
+  }
+}
