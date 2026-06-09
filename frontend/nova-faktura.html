@@ -162,7 +162,9 @@ function removeStavka(i) {
 function updateStavka(i, field, value) {
   stavke[i][field] = field === 'naziv' || field === 'jedinica' ? value : parseFloat(value) || 0;
   stavke[i].ukupno = stavke[i].kolicina * stavke[i].cena;
-  renderStavke();
+  const row = document.querySelector(`#stavkeBody tr[data-idx="${i}"]`);
+  if (row) row.querySelector('.ukupno-cell').textContent = stavke[i].ukupno.toFixed(2);
+  recalc();
 }
 
 function recalc() {
@@ -174,30 +176,43 @@ function recalc() {
 function renderStavke() {
   const tbody = document.getElementById('stavkeBody');
   tbody.innerHTML = stavke.map((s, i) => `
-    <tr>
-      <td><input type="text" value="${s.naziv}" placeholder="Naziv usluge/proizvoda"
-        onchange="window.updateStavka(${i}, 'naziv', this.value)"
-        oninput="window.updateStavka(${i}, 'naziv', this.value)"></td>
-      <td><input type="number" value="${s.kolicina}" min="0.01" step="0.01"
-        onchange="window.updateStavka(${i}, 'kolicina', this.value)"></td>
+    <tr data-idx="${i}">
+      <td><input type="text" name="naziv" value="${s.naziv.replace(/"/g, '&quot;')}" placeholder="Naziv usluge/proizvoda"></td>
+      <td><input type="number" name="kolicina" value="${s.kolicina}" min="0.01" step="0.01"></td>
       <td>
-        <select onchange="window.updateStavka(${i}, 'jedinica', this.value)">
+        <select name="jedinica">
           ${JEDINICE.map(j => `<option value="${j}" ${j === s.jedinica ? 'selected' : ''}>${j}</option>`).join('')}
         </select>
       </td>
-      <td><input type="number" value="${s.cena}" min="0" step="0.01"
-        onchange="window.updateStavka(${i}, 'cena', this.value)"></td>
-      <td style="text-align:right;font-weight:600;white-space:nowrap">
+      <td><input type="number" name="cena" value="${s.cena}" min="0" step="0.01"></td>
+      <td class="ukupno-cell" style="text-align:right;font-weight:600;white-space:nowrap">
         ${s.ukupno.toFixed(2)}
       </td>
-      <td><button class="del-btn" onclick="window.removeStavka(${i})">×</button></td>
+      <td><button class="del-btn" data-del="${i}">×</button></td>
     </tr>
   `).join('');
   recalc();
 }
 
-window.updateStavka = updateStavka;
-window.removeStavka = removeStavka;
+const stavkeBody = document.getElementById('stavkeBody');
+
+stavkeBody.addEventListener('input', (e) => {
+  const tr = e.target.closest('tr[data-idx]');
+  if (!tr || e.target.type !== 'text') return;
+  updateStavka(parseInt(tr.dataset.idx), e.target.name, e.target.value);
+});
+
+stavkeBody.addEventListener('change', (e) => {
+  const tr = e.target.closest('tr[data-idx]');
+  if (!tr) return;
+  updateStavka(parseInt(tr.dataset.idx), e.target.name, e.target.value);
+});
+
+stavkeBody.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-del]');
+  if (!btn) return;
+  removeStavka(parseInt(btn.dataset.del));
+});
 
 document.getElementById('btnDodajStavku').addEventListener('click', addStavka);
 document.getElementById('valuta').addEventListener('change', recalc);
