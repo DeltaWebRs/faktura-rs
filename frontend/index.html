@@ -116,7 +116,7 @@ function renderStats() {
     const map = {};
     fakture.forEach(f => { map[f.valuta] = (map[f.valuta] || 0) + f.ukupno; });
     const keys = Object.keys(map);
-    if (!keys.length) return '—';
+    if (!keys.length) return formatAmount(0, 'RSD');
     return keys.map(v => formatAmount(map[v], v)).join('<br>');
   }
 
