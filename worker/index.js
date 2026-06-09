@@ -91,8 +91,8 @@ function buildInvoiceHtml(f) {
 <meta charset="UTF-8">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a2e;background:#fff;margin:0;padding:0;width:794px}
-.a4{width:100%;padding:0;box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a2e;background:#fff;margin:0;padding:0;width:794px;overflow:hidden}
+.a4{width:794px;padding:40px 50px;box-sizing:border-box}
 .inv-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px}
 .inv-company h2{font-size:16px;font-weight:700;color:#2563eb}
 .inv-company p{font-size:10px;color:#555;line-height:1.6;margin-top:3px}
@@ -354,7 +354,7 @@ async function handleRequest(request, env) {
       const pdf = await page.pdf({
         format: 'A4',
         printBackground: true,
-        margin: { top: '15mm', right: '15mm', bottom: '15mm', left: '15mm' },
+        margin: { top: '0', right: '0', bottom: '0', left: '0' },
       });
       return new Response(pdf, {
         headers: {
