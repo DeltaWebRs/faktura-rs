@@ -149,11 +149,11 @@ body {
   letter-spacing: 0.5px;
 }
 .stat-card .value {
-  font-size: 26px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--text);
   margin-top: 6px;
-  line-height: 1.2;
+  line-height: 1.5;
 }
 .stat-card .sub {
   font-size: 12px;

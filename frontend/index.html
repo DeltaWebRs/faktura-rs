@@ -32,7 +32,7 @@
       <div class="stat-card">
         <div class="label">Ovaj mesec</div>
         <div class="value" id="stat-month">—</div>
-        <div class="sub">RSD fakturisano</div>
+        <div class="sub">Fakturisano</div>
       </div>
       <div class="stat-card">
         <div class="label">Neplaćeno</div>
@@ -112,22 +112,30 @@ function renderStats() {
 
   document.getElementById('stat-total').textContent = allFakture.length;
 
+  function amountsByCurrency(fakture) {
+    const map = {};
+    fakture.forEach(f => { map[f.valuta] = (map[f.valuta] || 0) + f.ukupno; });
+    const keys = Object.keys(map);
+    if (!keys.length) return '—';
+    return keys.map(v => formatAmount(map[v], v)).join('<br>');
+  }
+
   const thisMonth = allFakture.filter(f => {
     if (!f.datum_izdavanja) return false;
     const d = new Date(f.datum_izdavanja);
-    return d.getFullYear() === yr && d.getMonth() === mo && f.valuta === 'RSD';
-  }).reduce((s, f) => s + f.ukupno, 0);
-  document.getElementById('stat-month').textContent = formatAmount(thisMonth, 'RSD');
+    return d.getFullYear() === yr && d.getMonth() === mo;
+  });
+  document.getElementById('stat-month').innerHTML = amountsByCurrency(thisMonth);
 
-  const unpaid = allFakture.filter(f => f.status === 'neplacena').reduce((s, f) => s + (f.valuta === 'RSD' ? f.ukupno : 0), 0);
-  document.getElementById('stat-unpaid').textContent = formatAmount(unpaid, 'RSD');
+  const unpaid = allFakture.filter(f => f.status === 'neplacena');
+  document.getElementById('stat-unpaid').innerHTML = amountsByCurrency(unpaid);
 
   const paid = allFakture.filter(f => {
-    if (f.status !== 'placena' || f.valuta !== 'RSD') return false;
+    if (f.status !== 'placena') return false;
     const d = new Date(f.datum_izdavanja);
     return d.getFullYear() === yr;
-  }).reduce((s, f) => s + f.ukupno, 0);
-  document.getElementById('stat-paid').textContent = formatAmount(paid, 'RSD');
+  });
+  document.getElementById('stat-paid').innerHTML = amountsByCurrency(paid);
 }
 
 let chart;
