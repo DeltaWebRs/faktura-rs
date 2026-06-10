@@ -13,7 +13,7 @@
   <a href="index.html" class="btn btn-secondary btn-sm">← Nazad</a>
   <button class="btn btn-secondary btn-sm" id="btnDownload">
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-    Preuzmi PDF
+    Sačuvaj PDF
   </button>
   <button class="btn btn-sm" id="btnToggleStatus"></button>
 </div>
@@ -181,31 +181,7 @@ function render() {
   `;
 }
 
-document.getElementById('btnDownload').addEventListener('click', async () => {
-  const btn = document.getElementById('btnDownload');
-  btn.disabled = true;
-  btn.textContent = 'Generisanje...';
-  try {
-    const token = localStorage.getItem('faktura_token');
-    const WORKER_URL = 'https://faktura-rs-worker.workers-rs.workers.dev';
-    const res = await fetch(`${WORKER_URL}/api/fakture/${id}/pdf`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error('Greška pri generisanju PDF-a');
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${faktura?.broj || 'faktura'}.pdf`;
-    a.click();
-    URL.revokeObjectURL(url);
-  } catch (e) {
-    toast(e.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg> Preuzmi PDF`;
-  }
-});
+document.getElementById('btnDownload').addEventListener('click', () => window.print());
 
 document.getElementById('btnToggleStatus').addEventListener('click', async () => {
   const newStatus = faktura.status === 'placena' ? 'neplacena' : 'placena';

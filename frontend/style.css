@@ -517,7 +517,26 @@ td { padding: 10px 14px; font-size: 13.5px; }
 .inv-footer p { font-size: 11px; color: var(--text-sec); line-height: 1.7; }
 
 @media print {
-  .invoice-actions-bar { display: none; }
-  .invoice-bg { background: white; padding: 0; }
-  .a4 { box-shadow: none; }
+  @page { size: A4; margin: 0; }
+
+  body { background: white; }
+
+  .invoice-actions-bar,
+  #toast-container,
+  .sidebar,
+  nav { display: none !important; }
+
+  .invoice-bg { background: white; padding: 0; margin: 0; }
+
+  .a4 {
+    box-shadow: none;
+    margin: 0;
+    padding: 40px 45px;
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .inv-footer { margin-top: auto; }
 }
