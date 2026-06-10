@@ -59,8 +59,16 @@ async function buildPdf(f) {
   const page = pdfDoc.addPage([595, 842]);
   const { width, height } = page.getSize();
 
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  let font, fontBold;
+  try {
+    const fontRegularBytes = await fetch('https://fonts.gstatic.com/s/notosans/v36/o-0IIpQlx3QUlC5A4PNjXhFVZNyB.ttf').then(r => r.arrayBuffer());
+    const fontBoldBytes = await fetch('https://fonts.gstatic.com/s/notosans/v36/o-0NIpQlx3QUlC5A4PNjFhFVZNyBx2pqPIif.ttf').then(r => r.arrayBuffer());
+    font = await pdfDoc.embedFont(fontRegularBytes);
+    fontBold = await pdfDoc.embedFont(fontBoldBytes);
+  } catch {
+    font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  }
 
   const blue = rgb(0.145, 0.388, 0.922);
   const dark = rgb(0.102, 0.102, 0.173);
@@ -99,7 +107,7 @@ async function buildPdf(f) {
   page.drawText(`Promet: ${fmtDate(f.datum_prometa)}`, { x: width - margin - 120, y, font, size: 9, color: gray });
 
   y -= 14;
-  page.drawText(`Rok placanja: ${fmtDate(f.datum_valute)}`, { x: width - margin - 120, y, font, size: 9, color: gray });
+  page.drawText(`Rok plaćanja: ${fmtDate(f.datum_valute)}`, { x: width - margin - 120, y, font, size: 9, color: gray });
 
   // Divider
   y -= 20;
@@ -133,7 +141,7 @@ async function buildPdf(f) {
   y -= 28;
   page.drawRectangle({ x: margin, y: y - 4, width: width - margin*2, height: 20, color: rgb(0.95, 0.96, 0.97) });
   const cols = [margin, margin+35, margin+220, margin+265, margin+305, margin+400];
-  const headers = ['R.br.', 'Naziv usluge / proizvoda', 'Kol.', 'Jed.', 'Cijena', 'Iznos'];
+  const headers = ['R.br.', 'Naziv usluge / proizvoda', 'Kol.', 'Jed.', 'Cena', 'Iznos'];
   headers.forEach((h, i) => {
     page.drawText(h, { x: cols[i], y, font: fontBold, size: 8, color: gray });
   });
@@ -160,13 +168,13 @@ async function buildPdf(f) {
 
   // Total
   y -= 30;
-  page.drawLine({ start: { x: width - margin - 160, y: y + 16 }, end: { x: width - margin, y: y + 16 }, thickness: 1.5, color: blue });
-  page.drawText('UKUPNO ZA PLACANJE', { x: width - margin - 160, y, font: fontBold, size: 10, color: blue });
-  page.drawText(fmtAmount(f.ukupno, f.valuta), { x: width - margin - 80, y: y - 14, font: fontBold, size: 12, color: blue });
+  page.drawRectangle({ x: width - margin - 170, y: y - 24, width: 175, height: 54, color: rgb(0.94, 0.97, 1.0) });
+  page.drawText('UKUPNO ZA PLAĆANJE', { x: width - margin - 160, y, font: fontBold, size: 10, color: blue });
+  page.drawText(fmtAmount(f.ukupno, f.valuta), { x: width - margin - 160, y: y - 18, font: fontBold, size: 14, color: blue });
 
   // Payment info
   y -= 50;
-  page.drawText('PODACI ZA PLACANJE', { x: margin, y, font: fontBold, size: 8, color: gray });
+  page.drawText('PODACI ZA PLAĆANJE', { x: margin, y, font: fontBold, size: 8, color: gray });
   y -= 14;
   const isDevizna = f.valuta !== 'RSD';
   if (isDevizna) {
@@ -174,8 +182,10 @@ async function buildPdf(f) {
     y -= 14;
     page.drawText('SWIFT: RZBSRSBG  |  Banka: Raiffeisen banka', { x: margin, y, font, size: 10, color: dark });
   } else {
-    page.drawText('Ziro racun: 265-2030310001425-48  |  Banka: Raiffeisen banka', { x: margin, y, font, size: 10, color: dark });
+    page.drawText('Žiro račun: 265-2030310001425-48  |  Banka: Raiffeisen banka', { x: margin, y, font, size: 10, color: dark });
   }
+  y -= 14;
+  page.drawText(`Poziv na broj: ${f.broj}`, { x: margin, y, font, size: 9, color: gray });
 
   // Napomena
   if (f.napomena && String(f.napomena).trim()) {
@@ -191,7 +201,7 @@ async function buildPdf(f) {
 
   // Footer — fixed at bottom of page
   page.drawLine({ start: { x: margin, y: 50 }, end: { x: width - margin, y: 50 }, thickness: 0.5, color: rgb(0.88, 0.88, 0.88) });
-  page.drawText('PDV nije obracunat na osnovu clana 33. Zakona o PDV (pausalni poreski obveznik).', { x: margin, y: 35, font, size: 9, color: gray });
+  page.drawText('PDV nije obračunat na osnovu člana 33. Zakona o PDV (paušalni poreski obveznik).', { x: margin, y: 35, font, size: 9, color: gray });
 
   const pdfBytes = await pdfDoc.save();
   return pdfBytes;
