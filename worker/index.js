@@ -59,8 +59,18 @@ async function buildPdf(f) {
   const page = pdfDoc.addPage([595, 842]);
   const { width, height } = page.getSize();
 
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  let font, fontBold;
+  try {
+    const [regBytes, boldBytes] = await Promise.all([
+      fetch('https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoSans/NotoSans-Regular.ttf').then(r => r.arrayBuffer()),
+      fetch('https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoSans/NotoSans-Bold.ttf').then(r => r.arrayBuffer())
+    ]);
+    font = await pdfDoc.embedFont(regBytes);
+    fontBold = await pdfDoc.embedFont(boldBytes);
+  } catch(e) {
+    font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  }
 
   function tr(str) {
     if (!str) return '';
@@ -90,17 +100,17 @@ async function buildPdf(f) {
   let y = height - 50;
 
   // Company name
-  page.drawText('Vhirty / Damjan Dulovic', { x: margin, y, font: fontBold, size: 16, color: blue });
+  page.drawText('Vhirty / Damjan Dulović', { x: margin, y, font: fontBold, size: 16, color: blue });
 
   // FAKTURA title
   page.drawText('FAKTURA', { x: width - margin - 120, y, font: fontBold, size: 22, color: dark });
 
   y -= 18;
   page.drawText('PIB: 115739720 | MB: 68597455', { x: margin, y, font, size: 9, color: gray });
-  page.drawText(`Broj: ${tr(f.broj)}`, { x: width - margin - 120, y, font: fontBold, size: 10, color: dark });
+  page.drawText(`Broj: ${f.broj}`, { x: width - margin - 120, y, font: fontBold, size: 10, color: dark });
 
   y -= 14;
-  page.drawText('Ruze Sulman 39, 23000 Zrenjanin, Srbija', { x: margin, y, font, size: 9, color: gray });
+  page.drawText('Ruže Šulman 39, 23000 Zrenjanin, Srbija', { x: margin, y, font, size: 9, color: gray });
   page.drawText(`Datum: ${fmtDate(f.datum_izdavanja)}`, { x: width - margin - 120, y, font, size: 9, color: gray });
 
   y -= 14;
@@ -108,7 +118,7 @@ async function buildPdf(f) {
   page.drawText(`Promet: ${fmtDate(f.datum_prometa)}`, { x: width - margin - 120, y, font, size: 9, color: gray });
 
   y -= 14;
-  page.drawText(`Rok placanja: ${fmtDate(f.datum_valute)}`, { x: width - margin - 120, y, font, size: 9, color: gray });
+  page.drawText(`Rok plaćanja: ${fmtDate(f.datum_valute)}`, { x: width - margin - 120, y, font, size: 9, color: gray });
 
   // Divider
   y -= 20;
@@ -120,15 +130,15 @@ async function buildPdf(f) {
   page.drawText('PRIMALAC', { x: width/2, y, font: fontBold, size: 8, color: gray });
 
   y -= 16;
-  page.drawText('Vhirty / Damjan Dulovic', { x: margin, y, font: fontBold, size: 10, color: dark });
-  page.drawText(tr(f.klijent_naziv) || '-', { x: width/2, y, font: fontBold, size: 10, color: dark });
+  page.drawText('Vhirty / Damjan Dulović', { x: margin, y, font: fontBold, size: 10, color: dark });
+  page.drawText(f.klijent_naziv || '-', { x: width/2, y, font: fontBold, size: 10, color: dark });
 
-  const izdLines = ['PIB: 115739720', 'MB: 68597455', 'Ruze Sulman 39, 23000 Zrenjanin', 'hello@vhirty.com'];
+  const izdLines = ['PIB: 115739720', 'MB: 68597455', 'Ruže Šulman 39, 23000 Zrenjanin', 'hello@vhirty.com'];
   const primLines = [
-    f.klijent_pib ? `PIB: ${tr(f.klijent_pib)}` : null,
-    f.klijent_mb ? `MB: ${tr(f.klijent_mb)}` : null,
-    tr(f.klijent_adresa) || null,
-    tr(f.klijent_email) || null
+    f.klijent_pib ? `PIB: ${f.klijent_pib}` : null,
+    f.klijent_mb ? `MB: ${f.klijent_mb}` : null,
+    f.klijent_adresa || null,
+    f.klijent_email || null
   ].filter(Boolean);
 
   const maxLines = Math.max(izdLines.length, primLines.length);
@@ -149,7 +159,7 @@ async function buildPdf(f) {
 
   // Table rows
   stavke.forEach((s, idx) => {
-    const naziv = tr(String(s.naziv));
+    const naziv = String(s.naziv);
     const twoLines = naziv.length > 40;
     y -= twoLines ? 32 : 22;
     page.drawLine({ start: { x: margin, y: y - 4 }, end: { x: width - margin, y: y - 4 }, thickness: 0.3, color: rgb(0.94, 0.94, 0.94) });
@@ -162,20 +172,22 @@ async function buildPdf(f) {
       page.drawText(naziv.slice(0, 55), { x: cols[1], y, font, size: 9, color: dark });
     }
     page.drawText(String(s.kolicina), { x: cols[2], y: rowY, font, size: 9, color: dark });
-    page.drawText(tr(s.jedinica) || 'kom', { x: cols[3], y: rowY, font, size: 9, color: dark });
+    page.drawText(s.jedinica || 'kom', { x: cols[3], y: rowY, font, size: 9, color: dark });
     page.drawText(fmtAmount(s.cena), { x: cols[4], y: rowY, font, size: 9, color: dark });
     page.drawText(fmtAmount(s.ukupno), { x: cols[5], y: rowY, font: fontBold, size: 9, color: dark });
   });
 
   // Total
-  y -= 30;
-  page.drawRectangle({ x: width - margin - 170, y: y - 24, width: 175, height: 54, color: rgb(0.94, 0.97, 1.0) });
-  page.drawText('UKUPNO ZA PLACANJE', { x: width - margin - 160, y, font: fontBold, size: 10, color: blue });
-  page.drawText(fmtAmount(f.ukupno, f.valuta), { x: width - margin - 160, y: y - 18, font: fontBold, size: 14, color: blue });
+  y -= 45;
+  const boxX = width - margin - 175;
+  const boxY = y - 28;
+  page.drawRectangle({ x: boxX, y: boxY, width: 180, height: 58, color: rgb(0.94, 0.97, 1.0) });
+  page.drawText('UKUPNO ZA PLAĆANJE', { x: boxX + 10, y: y - 5, font: fontBold, size: 9, color: blue });
+  page.drawText(fmtAmount(f.ukupno, f.valuta), { x: boxX + 10, y: y - 22, font: fontBold, size: 13, color: blue });
 
   // Payment info
-  y -= 50;
-  page.drawText('PODACI ZA PLACANJE', { x: margin, y, font: fontBold, size: 8, color: gray });
+  y -= 65;
+  page.drawText('PODACI ZA PLAĆANJE', { x: margin, y, font: fontBold, size: 8, color: gray });
   y -= 14;
   const isDevizna = f.valuta !== 'RSD';
   if (isDevizna) {
@@ -183,17 +195,17 @@ async function buildPdf(f) {
     y -= 14;
     page.drawText('SWIFT: RZBSRSBG  |  Banka: Raiffeisen banka', { x: margin, y, font, size: 10, color: dark });
   } else {
-    page.drawText('Ziro racun: 265-2030310001425-48  |  Banka: Raiffeisen banka', { x: margin, y, font, size: 10, color: dark });
+    page.drawText('Žiro račun: 265-2030310001425-48  |  Banka: Raiffeisen banka', { x: margin, y, font, size: 10, color: dark });
   }
   y -= 14;
-  page.drawText(`Poziv na broj: ${tr(f.broj)}`, { x: margin, y, font, size: 9, color: gray });
+  page.drawText(`Poziv na broj: ${f.broj}`, { x: margin, y, font, size: 9, color: gray });
 
   // Napomena
   if (f.napomena && String(f.napomena).trim()) {
     y -= 20;
     page.drawText('Napomena:', { x: margin, y, font: fontBold, size: 9, color: gray });
     y -= 14;
-    const napLines = tr(String(f.napomena)).match(/.{1,90}/g) || [];
+    const napLines = String(f.napomena).match(/.{1,90}/g) || [];
     napLines.forEach(line => {
       page.drawText(line, { x: margin, y, font, size: 9, color: dark });
       y -= 14;
@@ -202,7 +214,7 @@ async function buildPdf(f) {
 
   // Footer — fixed at bottom of page
   page.drawLine({ start: { x: margin, y: 50 }, end: { x: width - margin, y: 50 }, thickness: 0.5, color: rgb(0.88, 0.88, 0.88) });
-  page.drawText('PDV nije obracunat na osnovu clana 33. Zakona o PDV (pausalni poreski obveznik).', { x: margin, y: 35, font, size: 9, color: gray });
+  page.drawText('PDV nije obračunat na osnovu člana 33. Zakona o PDV (paušalni poreski obveznik).', { x: margin, y: 35, font, size: 9, color: gray });
 
   const pdfBytes = await pdfDoc.save();
   return pdfBytes;
